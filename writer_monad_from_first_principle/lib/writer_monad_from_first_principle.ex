@@ -1,6 +1,6 @@
 require Monad.Writer
-Monad.Writer.functor(module: Monad.Writer.List, mappend: Kernel.++, mempty: [])
-Monad.Writer.functor(module: Monad.Writer.String, mappend: Kernel.<>, mempty: "")
+Monad.Writer.functor(module: Monad.Writer.List, mappend: Kernel.++, mempty: [], debug: :functor)
+Monad.Writer.functor(module: Monad.Writer.String, mappend: Kernel.<>, mempty: "", debug: :functor)
 
 defmodule WriterMonadFromFirstPrinciple do
   @moduledoc """
@@ -90,6 +90,39 @@ defmodule WriterMonadFromFirstPrinciple do
   def ms_augment_and_stringify(x, y) do
     import Monad.Writer.String
     m do
+      tell "augmenting..."
+      x2 <- ms_add_two(x)
+      y2 <- ms_add_two(y)
+      tell "stringifying..."
+      pure to_string(x2 + y2)
+    end
+  end
+
+  def msg_basic_chain(x) do
+    import Monad.Writer.String
+    #m do
+    require Monad
+    Monad.m Monad.Writer.String do
+      tell "banana"
+      pure x
+    end
+  end
+
+  def msg_add_two(x) do
+    import Monad.Writer.String
+    #m do
+    require Monad
+    Monad.m Monad.Writer.String do
+      tell "adding 2..."
+      pure x + 2
+    end
+  end
+
+  def msg_augment_and_stringify(x, y) do
+    import Monad.Writer.String
+    #m do
+    require Monad
+    Monad.m Monad.Writer.String do
       tell "augmenting..."
       x2 <- ms_add_two(x)
       y2 <- ms_add_two(y)
