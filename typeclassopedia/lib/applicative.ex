@@ -55,8 +55,10 @@ defmodule Applicative do
 
     {apA, liftA2} = case t do
       %{apA: apA, liftA2: liftA2} -> {apA, liftA2}
-      %{apA: apA} -> {apA, fn f, mx, my -> apA.(functor.map.(fn x -> fn y -> f.(x, y) end end, mx), my) end}
-      %{liftA2: liftA2} -> {fn mf, mx -> liftA2.(fn x -> x end, mf, mx) end, liftA2}
+      #%{apA: apA} -> {apA, fn f, mx, my -> apA.(functor.map.(fn x -> fn y -> f.(x, y) end end, mx), my) end}
+      #%{apA: apA} -> {apA, fn f, mx, my -> fn x -> fn y -> f.(x, y) end end |> functor.map.(mx) |> apA.(my) end}
+      %{apA: apA} -> {apA, fn f, mx, my -> pure.(fn x -> fn y -> f.(x, y) end end) |> apA.(mx) |> apA.(my) end}
+      %{liftA2: liftA2} -> {fn mf, mx -> liftA2.(fn f, x -> f.(x) end, mf, mx) end, liftA2}
     end
 
     leftA =  Map.get(t, :leftA,  fn mx, my -> liftA2.(fn x, _ -> x end, mx, my) end)
@@ -72,7 +74,7 @@ defmodule Applicative do
     }
   end
 
-  def liftA(f, mx, dict), do: dict.pure.(f) |> dict.apA.(mx)
+  def liftA(f, mx, dict), do: dict.functor.map.(f, mx)
 
   def liftA3(f, mx, my, mz, dict), do: dict.liftA2.(fn x, y -> fn z -> f.(x, y, z) end end, mx, my) |> dict.apA.(mz)
 end
