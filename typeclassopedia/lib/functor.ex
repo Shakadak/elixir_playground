@@ -2,23 +2,28 @@ defmodule Functor do
   @typedoc """
   Functor dictionary
 
-  * `fmap`: (f a, f a -> f b) -> f b # params are swapped to facilitate piping, mandatory
+  intuitive type: fmap : (a -> b) -> f a -> f b
+
+  * `map`: (f a, a -> b) -> f b # mandatory
+  * `flmap`: (f a, a -> b) -> f b # params are swapped to facilitate piping, optional
   * `lift_left`: a -> f b -> f a # default implementation provided, optional
   """
   @type t :: %__MODULE__{
-    fmap: (any, (any -> any) -> any),
+    map: ((any -> any), any -> any),
+    flmap: (any, (any -> any) -> any),
     lift_left: (any, any -> any),
   }
 
   def __struct__, do: %{
     __struct__: __MODULE__,
-    fmap: fn _, _ -> raise("Functor: missing definition for fmap") end,
+    map: fn _, _ -> raise("Functor: missing definition for fmap") end,
+    flmap: fn _, _ -> raise("Functor: missing definition for flmap") end,
     lift_left: fn _, _ -> raise("Functor: missing definition for lift_left") end,
   }
 
   def __struct__(kv) do
     {map, keys} =
-      Enum.reduce(kv, {__struct__(), [:fmap, :lift_left]}, fn {key, val}, {map, keys} ->
+      Enum.reduce(kv, {__struct__(), [:map, :flmap, :lift_left]}, fn {key, val}, {map, keys} ->
         {Map.replace!(map, key, val), List.delete(keys, key)}
       end)
 
@@ -34,13 +39,12 @@ defmodule Functor do
   end
 
   def define(t) do
-    fmap = case Access.fetch(t, :fmap) do
-      {:ok, fmap} -> fmap
-      :error -> raise KeyError, key: :fmap, term: t
-    end
+    t = Map.new(t)
+    map = Map.fetch!(t, :map)
+    flmap = Map.get(t, :flmap, fn mx, f -> map.(f, mx) end)
 
-    lift_left = Access.get(t, :lift_left, fn a, f_b -> fmap.(f_b, fn _ -> a end) end)
+    lift_left = Access.get(t, :lift_left, fn a, mb -> map.(fn _ -> a end, mb) end)
 
-    %__MODULE__{fmap: fmap, lift_left: lift_left}
+    %__MODULE__{map: map, flmap: flmap, lift_left: lift_left}
   end
 end
