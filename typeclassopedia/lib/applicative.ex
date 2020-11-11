@@ -8,18 +8,14 @@ defmodule Applicative do
   * `lift_left`: a -> f b -> f a # default implementation provided, optional
   """
   @type t :: %__MODULE__{
+    functor: Functor.t,
     pure: (any -> any),
     apA: (any, any -> any),
   }
 
   def __struct__, do: %{
     __struct__: __MODULE__,
-    functor: %{
-      __struct__: Functor,
-      map: fn _, _ -> raise("Functor: missing definition for map") end,
-      flmap: fn _, _ -> raise("Functor: missing definition for flmap") end,
-      lift_left: fn _, _ -> raise("Functor: missing definition for lift_left") end,
-    },
+    functor: Functor.__struct__,
     pure: fn _ -> raise("Applicative: missing definition for pure") end,
     apA: fn _, _ -> raise("Applicative: missing definition for apA") end,
     liftA2: fn _, _ -> raise("Applicative: missing definition for apA") end,
