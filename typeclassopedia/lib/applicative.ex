@@ -18,7 +18,7 @@ defmodule Applicative do
     functor: Functor.__struct__,
     pure: fn _ -> raise("Applicative: missing definition for pure") end,
     apA: fn _, _ -> raise("Applicative: missing definition for apA") end,
-    liftA2: fn _, _ -> raise("Applicative: missing definition for apA") end,
+    liftA2: fn _, _ -> raise("Applicative: missing definition for liftA2") end,
     leftA: fn _, _ -> raise("Applicative: missing definition for leftA") end,
     rightA: fn _, _ -> raise("Applicative: missing definition for leftA") end,
   }

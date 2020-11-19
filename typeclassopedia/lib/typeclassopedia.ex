@@ -9,13 +9,13 @@ defmodule Typeclassopedia do
   def functor_list, do: Functor.define(map: &:lists.map/2)
 
   def functor_maybe, do: Functor.define(map: fn
-    _, {:nothing} -> {:nothing}
-    f, {:just, x} -> {:just, f.(x)}
+    _, :Nothing   -> :Nothing
+    f, {:Just, x} -> {:Just, f.(x)}
   end)
 
   def functor_either, do: Functor.define(map: fn
-    _, {:left, _} = t_a -> t_a
-    f, {:right, x} -> {:right, f.(x)}
+    _, {:Left, _} = t_a -> t_a
+    f, {:Right, x} -> {:Right, f.(x)}
   end)
 
   # (a -> b) -> f a -> f b = (a -> b) -> (e -> a) -> (e -> b)
@@ -26,14 +26,14 @@ defmodule Typeclassopedia do
 
   def functor_pair, do: Functor.define(map: fn f, {x, y} -> {f.(x), f.(y)} end)
 
-  def itree_leaf(f), do: {:leaf, f}   # Leaf (Int -> a)
-  def itree_node(xs), do: {:node, xs} # Node [Itree a]
+  def itree_leaf(f), do: {:Leaf, f}   # Leaf (Int -> a)
+  def itree_node(xs), do: {:Node, xs} # Node [Itree a]
 
   def functor_itree do
     
     recf = fn recf -> fn
-      f, {:leaf, g} -> {:leaf, fn x -> f.(g.(x)) end}
-      f, {:node, xs} -> {:node, :lists.map(fn x -> recf.(recf).(f, x) end, xs)}
+      f, {:Leaf, g} -> {:Leaf, fn x -> f.(g.(x)) end}
+      f, {:Node, xs} -> {:Node, :lists.map(fn x -> recf.(recf).(f, x) end, xs)}
     end end
 
     Functor.define(map: recf.(recf))
@@ -43,10 +43,10 @@ defmodule Typeclassopedia do
 
   def applicative_maybe, do: Applicative.define(
     functor: functor_maybe(),
-    pure: fn x -> {:just, x} end,
+    pure: fn x -> {:Just, x} end,
     apA: fn
-      {:just, f}, {:just, x} -> {:just, f.(x)}
-      _, _ -> {:nothing}
+      {:Just, f}, {:Just, x} -> {:Just, f.(x)}
+      _, _ -> :Nothing
     end
   )
 
@@ -79,8 +79,8 @@ defmodule Typeclassopedia do
   def monad_maybe, do: Monad.define(
     applicative: applicative_maybe(),
     bind: fn
-      {:just, x}, f -> f.(x)
-      {:nothing}, _ -> {:nothing}
+      {:Just, x}, f -> f.(x)
+      :Nothing, _ -> :Nothing
     end
     )
 
@@ -142,4 +142,115 @@ defmodule Typeclassopedia do
   # join x = bind x id
   # or in elixir notation
   # def join(mx), do bind(mx, fn x -> x end)
+
+  def semigroup_maybe(semigroup_a) do
+    Semigroup.define(
+      <>: fn
+        :Nothing,   x          -> x
+        x,          :Nothing   -> x
+        {:Just, x}, {:Just, y} -> semigroup_a.concat.(x, y)
+      end
+    )
+  end
+
+  def semigroup_first do
+    Semigroup.define(<>: fn
+      {:First, :Nothing}, x -> x
+      x,                    _ -> x
+    end)
+  end
+
+  def semigroup_last do
+    Semigroup.define(<>: fn
+      x, {:Last, :Nothing} -> x
+      _, x                 -> x
+    end)
+  end
+
+  def semigroup_list do
+    Semigroup.define(<>: &++/2)
+  end
+
+  def semigroup_sum do
+    Semigroup.define(<>: &+/2)
+  end
+
+  def semigroup_product do
+    Semigroup.define(<>: &*/2)
+  end
+
+  def monoid_list do
+    Monoid.define(
+      semigroup: semigroup_list(),
+      empty: [],
+      mconcat: &Enum.concat/1
+    )
+  end
+
+  def monoid_sum do
+    Monoid.define(
+      semigroup: semigroup_sum(),
+      mempty: 0,
+      mconcat: &Enum.sum/1
+    )
+  end
+
+  def monoid_product do
+    Monoid.define(
+      semigroup: semigroup_product(),
+      mempty: 1
+    )
+  end
+
+  def monoid_any do
+    Monoid.define(
+      semigroup: Semigroup.define(<>: &or/2),
+      mempty: false,
+      mconcat: fn xs -> Enum.reduce_while(xs, false, fn x, acc -> if x or acc, do: {:halt, true}, else: {:cont, false} end) end
+    )
+  end
+
+  def monoid_all do
+    Monoid.define(
+      semigroup: Semigroup.define(<>: &and/2),
+      mempty: true,
+      mconcat: fn xs -> Enum.reduce_while(xs, true, fn x, acc -> if x and acc, do: {:cont, true}, else: {:halt, false} end) end
+    )
+  end
+
+  def monoid_maybe(semigroup_a) do
+    Monoid.define(
+      semigroup: semigroup_maybe(semigroup_a),
+      mempty: :Nothing
+    )
+  end
+
+  def monoid_first do
+    Monoid.define(
+      semigroup: semigroup_first(),
+      mempty: {:First, :Nothing}
+    )
+  end
+
+  def monoid_last do
+    Monoid.define(
+      semigroup: semigroup_last(),
+      mempty: {:Last, :Nothing}
+    )
+  end
+
+  def monoid_endo do
+    Monoid.define(
+      semigroup: Semigroup.define(<>: fn {:Endo, f}, {:Endo, g} -> {:Endo, fn x -> f.(g.(x)) end} end),
+      mempty: {:Endo, fn x -> x end}
+    )
+  end
+
+  def alternative_list do
+    Alternative.define(
+      applicative: applicative_list(),
+      empty: [],
+      <|>: &++/2
+    )
+  end
 end

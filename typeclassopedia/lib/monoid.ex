@@ -22,7 +22,7 @@ defmodule Monoid do
   }
 
   def __struct__(kv) do
-    required_keys = [:mempty, :mappend, :mconcat]
+    required_keys = [:semigroup, :mempty, :mappend, :mconcat]
     {map, keys} =
       Enum.reduce(kv, {__struct__(), required_keys}, fn {key, val}, {map, keys} ->
         {Map.replace!(map, key, val), List.delete(keys, key)}
@@ -43,7 +43,7 @@ defmodule Monoid do
     t = Map.new(t)
     semigroup = Map.fetch!(t, :semigroup)
     mempty = Map.fetch!(t, :mempty)
-    mappend = Map.get(t, :mappend, semigroup.concat)
+    mappend = Map.get(t, :mappend, semigroup.<>)
     mconcat = Map.get(t, :mconcat, fn xs -> Enum.reduce(xs, mempty, mappend) end)
 
     %__MODULE__{

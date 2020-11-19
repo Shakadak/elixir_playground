@@ -8,18 +8,19 @@ defmodule Semigroup do
   * `lift_left`: a -> f b -> f a # default implementation provided, optional
   """
   @type t :: %__MODULE__{
-    concat: (any, any -> any),
+    <>: (any, any -> any),
   }
 
   def __struct__, do: %{
     __struct__: __MODULE__,
-    concat: fn _, _ -> raise("Semigroup: missing definition for concat") end,
+    <>: fn _, _ -> raise("Semigroup: missing definition for concat") end,
     sconcat: fn _ -> raise("Semigroup: missing definition for sconcat") end,
     stimes: fn _, _ -> raise("Semigroup: missing definition for stimes") end,
   }
 
   def __struct__(kv) do
-    required_keys = [:concat, :sconcat, :stimes]
+    _ = IO.inspect(kv, label: "Semigroup : __struct__(kv)")
+    required_keys = [:<>, :sconcat, :stimes]
     {map, keys} =
       Enum.reduce(kv, {__struct__(), required_keys}, fn {key, val}, {map, keys} ->
         {Map.replace!(map, key, val), List.delete(keys, key)}
@@ -38,12 +39,12 @@ defmodule Semigroup do
 
   def define(t) do
     t = Map.new(t)
-    concat = Map.fetch!(t, :concat)
+    concat = Map.fetch!(t, :<>)
     sconcat = Map.get(t, :sconcat, fn xs -> Enum.reduce(xs, concat) end)
     stimes = Map.get(t, :stimes, fn n, x -> stimes_default(concat, n, x) end)
 
     %__MODULE__{
-      concat: concat,
+      <>: concat,
       sconcat: sconcat,
       stimes: stimes,
     }
