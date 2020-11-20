@@ -52,7 +52,7 @@ defmodule Semigroup do
   def define(t) do
     t = Map.new(t)
     concat = Map.fetch!(t, :<>)
-    sconcat = Map.get(t, :sconcat, fn xs -> Enum.reduce(xs, concat) end)
+    sconcat = Map.get(t, :sconcat, fn [x | xs] -> List.foldr(xs, x, concat) end)
     stimes = Map.get(t, :stimes, fn x, n -> stimes_default(concat, n, x) end)
 
     %__MODULE__{

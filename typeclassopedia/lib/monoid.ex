@@ -44,7 +44,7 @@ defmodule Monoid do
     semigroup = Map.fetch!(t, :semigroup)
     mempty = Map.fetch!(t, :mempty)
     mappend = Map.get(t, :mappend, semigroup.<>)
-    mconcat = Map.get(t, :mconcat, fn xs -> Enum.reduce(xs, mempty, mappend) end)
+    mconcat = Map.get(t, :mconcat, fn xs -> List.foldr(xs, mempty, mappend) end)
 
     %__MODULE__{
       semigroup: semigroup,
