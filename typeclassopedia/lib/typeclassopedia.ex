@@ -143,6 +143,8 @@ defmodule Typeclassopedia do
   # or in elixir notation
   # def join(mx), do bind(mx, fn x -> x end)
 
+  ### Semigroup ###
+
   def semigroup_maybe(semigroup_a) do
     Semigroup.define(
       <>: fn
@@ -179,10 +181,12 @@ defmodule Typeclassopedia do
     Semigroup.define(<>: &*/2)
   end
 
+  ### Monoid ###
+
   def monoid_list do
     Monoid.define(
       semigroup: semigroup_list(),
-      empty: [],
+      mempty: [],
       mconcat: &Enum.concat/1
     )
   end
@@ -246,6 +250,8 @@ defmodule Typeclassopedia do
     )
   end
 
+  ### Alternative ###
+
   def alternative_list do
     Alternative.define(
       applicative: applicative_list(),
@@ -263,5 +269,45 @@ defmodule Typeclassopedia do
         l       , _ -> l
       end
     )
+  end
+
+  ### Foldable ###
+
+  def foldable_list do
+    Foldable.define(
+      foldMap: fn t, f, monoid_dict -> monoid_dict.mconcat.(:lists.map(f, t)) end
+    )
+  end
+
+  def tree_empty,   do: :Empty
+  def tree_leaf(x), do: {:Leaf, x}
+  def tree_node(l, x, r), do: {:Node, l, x, r}
+
+  def example_tree do
+    tree_node(
+      tree_node(
+        tree_node(
+          tree_empty(),
+          1,
+          tree_empty()),
+        2,
+        tree_leaf(3)),
+      4,
+      tree_node(
+        tree_empty(),
+        5,
+        tree_node(
+          tree_leaf(6),
+          7,
+          tree_empty())))
+  end
+
+  def foldable_tree do
+    recf = fn recf -> fn
+      :Empty          , _, monoid_dict -> monoid_dict.mempty
+      {:Leaf, x}      , f, _           -> f.(x)
+      {:Node, l, x, r}, f, monoid_dict -> recf.(recf).(l, f, monoid_dict) |> monoid_dict.mappend.(f.(x)) |> monoid_dict.mappend.(recf.(recf).(r, f, monoid_dict))
+    end end
+    Foldable.define(foldMap: recf.(recf))
   end
 end
