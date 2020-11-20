@@ -51,8 +51,6 @@ defmodule Applicative do
 
     {apA, liftA2} = case t do
       %{apA: apA, liftA2: liftA2} -> {apA, liftA2}
-      #%{apA: apA} -> {apA, fn f, mx, my -> apA.(functor.map.(fn x -> fn y -> f.(x, y) end end, mx), my) end}
-      #%{apA: apA} -> {apA, fn f, mx, my -> fn x -> fn y -> f.(x, y) end end |> functor.map.(mx) |> apA.(my) end}
       %{apA: apA} -> {apA, fn f, mx, my -> pure.(fn x -> fn y -> f.(x, y) end end) |> apA.(mx) |> apA.(my) end}
       %{liftA2: liftA2} -> {fn mf, mx -> liftA2.(fn f, x -> f.(x) end, mf, mx) end, liftA2}
     end

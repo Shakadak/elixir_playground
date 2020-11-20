@@ -1,6 +1,6 @@
 defmodule Semigroup do
   @typedoc """
-  Functor dictionary
+  Semigroup dictionary
 
   intuitive type: fmap : f (a -> b) -> f a -> f b
 
@@ -11,6 +11,19 @@ defmodule Semigroup do
     <>: (any, any -> any),
   }
 
+  @doc """
+  An associative operation
+
+  (<>) : (a, a) -> a
+
+  ## Examples
+
+      iex> [1, 2, 3] <> [4, 5, 6]
+      [1, 2, 3, 4, 5, 6]
+
+  """
+  @callback any <> any :: any
+
   def __struct__, do: %{
     __struct__: __MODULE__,
     <>: fn _, _ -> raise("Semigroup: missing definition for concat") end,
@@ -19,7 +32,6 @@ defmodule Semigroup do
   }
 
   def __struct__(kv) do
-    _ = IO.inspect(kv, label: "Semigroup : __struct__(kv)")
     required_keys = [:<>, :sconcat, :stimes]
     {map, keys} =
       Enum.reduce(kv, {__struct__(), required_keys}, fn {key, val}, {map, keys} ->
@@ -41,7 +53,7 @@ defmodule Semigroup do
     t = Map.new(t)
     concat = Map.fetch!(t, :<>)
     sconcat = Map.get(t, :sconcat, fn xs -> Enum.reduce(xs, concat) end)
-    stimes = Map.get(t, :stimes, fn n, x -> stimes_default(concat, n, x) end)
+    stimes = Map.get(t, :stimes, fn x, n -> stimes_default(concat, n, x) end)
 
     %__MODULE__{
       <>: concat,

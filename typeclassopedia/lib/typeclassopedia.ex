@@ -6,25 +6,25 @@ defmodule Typeclassopedia do
 
   # FUNCTORS
 
-  def functor_list, do: Functor.define(map: &:lists.map/2)
+  def functor_list, do: Functor.define(map: fn x, f -> :lists.map(f, x) end)
 
   def functor_maybe, do: Functor.define(map: fn
-    _, :Nothing   -> :Nothing
-    f, {:Just, x} -> {:Just, f.(x)}
+    :Nothing  , _   -> :Nothing
+    {:Just, x}, f   -> {:Just, f.(x)}
   end)
 
   def functor_either, do: Functor.define(map: fn
-    _, {:Left, _} = t_a -> t_a
-    f, {:Right, x} -> {:Right, f.(x)}
+    {:Left, _} , _ = t_a -> t_a
+    {:Right, x}, f       -> {:Right, f.(x)}
   end)
 
   # (a -> b) -> f a -> f b = (a -> b) -> (e -> a) -> (e -> b)
   # f a = (e -> a) # a -> b = (e -> a) -> (e -> b)
-  def functor_function_out, do: Functor.define(map: fn f, fa -> fn x -> f.(fa.(x)) end end)
+  def functor_function_out, do: Functor.define(map: fn fa, f -> fn x -> f.(fa.(x)) end end)
 
-  def functor_tuple2, do: Functor.define(map: fn f, {e, x} -> {e, f.(x)} end)
+  def functor_tuple2, do: Functor.define(map: fn {e, x}, f -> {e, f.(x)} end)
 
-  def functor_pair, do: Functor.define(map: fn f, {x, y} -> {f.(x), f.(y)} end)
+  def functor_pair, do: Functor.define(map: fn {x, y}, f -> {f.(x), f.(y)} end)
 
   def itree_leaf(f), do: {:Leaf, f}   # Leaf (Int -> a)
   def itree_node(xs), do: {:Node, xs} # Node [Itree a]
@@ -32,8 +32,8 @@ defmodule Typeclassopedia do
   def functor_itree do
     
     recf = fn recf -> fn
-      f, {:Leaf, g} -> {:Leaf, fn x -> f.(g.(x)) end}
-      f, {:Node, xs} -> {:Node, :lists.map(fn x -> recf.(recf).(f, x) end, xs)}
+      {:Leaf, g} , f -> {:Leaf, fn x -> f.(g.(x)) end}
+      {:Node, xs}, f -> {:Node, :lists.map(fn x -> recf.(recf).(f, x) end, xs)}
     end end
 
     Functor.define(map: recf.(recf))
@@ -46,7 +46,7 @@ defmodule Typeclassopedia do
     pure: fn x -> {:Just, x} end,
     apA: fn
       {:Just, f}, {:Just, x} -> {:Just, f.(x)}
-      _, _ -> :Nothing
+      _         , _          -> :Nothing
     end
   )
 
@@ -59,16 +59,16 @@ defmodule Typeclassopedia do
   def applicative_list, do: Applicative.define(
     functor: functor_list(),
     pure: fn x -> [x] end,
-    apA: fn fs, xs -> for f <- fs, x <- xs, do: f.(x) end
-    #liftA2: fn f, xs, ys -> for x <- xs, y <- ys, do: f.(x, y) end
+    apA: fn fs, xs -> for f <- fs, x <- xs, do: f.(x) end,
+    liftA2: fn f, xs, ys -> for x <- xs, y <- ys, do: f.(x, y) end
   )
 
-  def sequenceAL(mx_s, dict), do: :lists.foldr(fn mx, m_xs -> dict.liftA2.(fn x, xs -> [x | xs] end, mx, m_xs) end, dict.pure.([]), mx_s)
+  def sequenceAL(mx_s, applicative_dict), do: :lists.foldr(fn mx, m_xs -> applicative_dict.liftA2.(fn x, xs -> [x | xs] end, mx, m_xs) end, applicative_dict.pure.([]), mx_s)
 
   def monad_identity, do: Monad.define(
     applicative: Applicative.define(
       functor: Functor.define(
-        map: fn f, {x} -> {f.(x)} end
+        map: fn {x}, f -> {f.(x)} end
       ),
       pure: fn x -> {x} end,
       apA: fn {f}, {x} -> {f.(x)} end
@@ -251,6 +251,17 @@ defmodule Typeclassopedia do
       applicative: applicative_list(),
       empty: [],
       <|>: &++/2
+    )
+  end
+
+  def alternative_maybe do
+    Alternative.define(
+      applicative: applicative_maybe(),
+      empty: :Nothing,
+      <|>: fn
+        :Nothing, r -> r
+        l       , _ -> l
+      end
     )
   end
 end
