@@ -45,6 +45,7 @@ defmodule Foldable do
       :sum,
       :product,
     ]
+
     {map, keys} =
       Enum.reduce(kv, {__struct__(), required_keys}, fn {key, val}, {map, keys} ->
         {Map.replace!(map, key, val), List.delete(keys, key)}

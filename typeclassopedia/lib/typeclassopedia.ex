@@ -310,4 +310,138 @@ defmodule Typeclassopedia do
     end end
     Foldable.define(foldMap: recf.(recf))
   end
+
+  def functor_tree do
+    recf = fn recf -> fn
+      :Empty          , _ -> :Empty
+      {:Leaf, x}      , f -> {:Leaf, f.(x)}
+      {:Node, l, x, r}, f -> {:Node, recf.(recf).(l, f), f.(x), recf.(recf).(r, f)}
+    end end
+    Functor.define(map: recf.(recf))
+  end
+
+  def example_tree_of_list do
+    tree_node(
+      tree_node(
+        tree_node(
+          tree_empty(),
+          [1, 2],
+          tree_empty()),
+        [3, 4],
+        tree_leaf([5, 6])),
+      [7, 8],
+      tree_node(
+        tree_empty(),
+        [9, 10],
+        tree_node(
+          tree_leaf([11, 12]),
+          [13, 14],
+          tree_empty())))
+  end
+
+  def traversable_tree do
+    recf = fn recf -> fn
+      :Empty          , _, applicative_dict -> applicative_dict.pure.(tree_empty()) |> IO.inspect(label: "Empty")
+      {:Leaf, x}      , f, applicative_dict -> applicative_dict.functor.map.(f.(x), &tree_leaf/1) |> IO.inspect(label: "Leaf")
+      {:Node, l, x, r}, f, applicative_dict ->
+        traverse = recf.(recf)
+        fl = traverse.(l, f, applicative_dict)
+        fr = traverse.(r, f, applicative_dict)
+        Applicative.liftA3(&tree_node/3, fl, f.(x), fr, applicative_dict) |> IO.inspect(label: "Node")
+    end end
+
+    Traversable.define(
+      functor: functor_tree(),
+      foldable: foldable_tree(),
+      traverse: recf.(recf)
+    )
+  end
+
+  def bifunctor_either do
+    Bifunctor.define(bimap: fn
+      {:Left, x} , f, _ -> {:Left, f.(x)}
+      {:Right, x}, _, g -> {:Right, g.(x)}
+    end)
+  end
+
+  def bifunctor_tuple2 do
+    Bifunctor.define(bimap: fn {x, y}, f, g -> {f.(x), g.(y)} end)
+  end
+
+  def category_function1 do
+    Category.define(id: fn x -> x end, ..: fn f, g -> fn x -> g.(x) |> f.() end end)
+  end
+
+  def category_kleisli(monad_dict) do
+    Category.define(
+      id: fn x -> {:Kleisli, monad_dict.applicative.pure.(x)} end,
+      ..: fn {:Kleisli, f}, {:Kleisli, g} -> fn x -> g.(x) |> monad_dict.bind(f) end end
+    )
+  end
+
+  def arrow_function1 do
+    Arrow.define(
+      category: category_function1(),
+      arr: fn f -> f end,
+      parallel: fn f, g -> fn {x, y} -> {f.(x), g.(y)} end end
+    )
+  end
+
+  def arrow_kleisli(monad_dict) do
+    Arrow.define(
+      category: category_kleisli(monad_dict),
+      arr: fn f -> {:Kleisli, fn x -> monad_dict.return.(f.(x)) end} end,
+      first: fn {:Kleisli, f} -> {:Kleisli, fn {x, y} -> f.(x) |> monad_dict.bind.(fn x2 -> monad_dict.return.({x2, y}) end) end} end,
+      second: fn {:Kleisli, f} -> {:Kleisli, fn {x, y} -> f.(y) |> monad_dict.bind.(fn y2 -> monad_dict.return.({x, y2}) end) end} end
+    )
+  end
+
+  def arrow_choice_function1 do
+    either = fn
+      {:Left , x}, f, _ -> f.(x)
+      {:Right, y}, _, g -> g.(y)
+    end
+    multiplex = fn f, g -> fn x -> either.(x, fn x -> {:Left, f.(x)} end, fn y -> {:Right, g.(y)} end) end end
+    ArrowChoice.define(
+      arrow: arrow_function1(),
+      left: fn f -> multiplex.(f, fn x -> x end) end,
+      right: fn g -> multiplex.(fn x -> x end, g) end,
+      multiplex: multiplex,
+      merge: fn arl, arr -> fn x -> either.(x, arl, arr) end end
+    )
+  end
+
+  def arrow_choice_kleisli(monad_dict) do
+    arrow_dict = arrow_kleisli(monad_dict)
+    category_dict = arrow_dict.category
+    arr = arrow_dict.arr
+    c = category_dict
+    either = fn
+      {:Left , x}, f, _ -> f.(x)
+      {:Right, y}, _, g -> g.(y)
+    end
+    merge = fn {:Kleisli, f}, {:Kleisli, g} -> {:Kleisli, fn x -> either.(x, f, g) end} end
+    multiplex = fn f, g -> merge.(c.>>>.(f, arr.(fn x -> {:Left, x} end)), c.>>>.(g, arr.(fn y -> {:Right, y} end))) end
+    ArrowChoice.define(
+      arrow: arrow_function1(),
+      left: fn f -> multiplex.(f, fn x -> x end) end,
+      right: fn g -> multiplex.(fn x -> x end, g) end,
+      multiplex: multiplex,
+      merge: merge
+    )
+  end
+
+  def arrow_apply_function1 do
+    ArrowApply.define(
+      arrow: arrow_function1(),
+      app: fn {f, x} -> f.(x) end
+    )
+  end
+
+  def arrow_apply_kleisli(monad_dict) do
+    ArrowApply.define(
+      arrow: arrow_kleisli(monad_dict),
+      app: {:Kleisli, fn {{:Kleisli, f}, x} -> f.(x) end}
+    )
+  end
 end
