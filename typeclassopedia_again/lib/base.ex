@@ -1,4 +1,4 @@
-defmodule Base do
+defmodule Bask do
   defmacro open(module, only: only, except: except, do: ast) do
     do_open(module, %{only: only, except: except}, ast, __CALLER__)
   end
@@ -24,17 +24,17 @@ defmodule Base do
     do_open(module, %{except: except}, ast, __CALLER__)
   end
 
-  def do_open(module, opts, ast, caller) do
-    module = Macro.expand(module, caller)
+  def do_open(module_ast, opts, ast, caller) do
+    module = Macro.expand(module_ast, caller)
 
     ast = if module == caller.module do
       do_open_on_self(module, ast)
     else
-      do_open_go(module, opts, ast, caller)
+      do_open_go(module_ast, module, opts, ast, caller)
     end
 
     ast
-    |> case do x -> _ = IO.puts(Macro.to_string(x)) ; x end
+    #|> case do x -> _ = IO.puts(Macro.to_string(x)) ; x end
   end
 
   def do_open_on_self(module, ast) do
@@ -48,7 +48,7 @@ defmodule Base do
     updated_ast
   end
 
-  def do_open_go(module, opts, ast, _caller) do
+  def do_open_go(module_ast, module, opts, ast, _caller) do
     only = Map.get(opts, :only, [])
     except = Map.get(opts, :except, [])
 
@@ -66,13 +66,14 @@ defmodule Base do
 
     _ = if {:open, 2} in name_x_arity or {:open, 3} in name_x_arity do
       require Logger
-      _ = Logger.warn("Warning: open/2,3 in #{inspect(module)} may override inner uses of Base.open/2,3 macro")
+      _ = Logger.warn("Warning: open/2,3 in #{inspect(module)} may override inner uses of Bask.open/2,3 macro")
     end
 
     updated_ast = Macro.prewalk(ast, fn
       {name, _, xs} = x when is_list(xs) ->
         if {name, length(xs)} in name_x_arity do
-          Macro.update_meta(x, fn m -> Keyword.put(m, :import, module) end)
+          #Macro.update_meta(x, fn m -> Keyword.put(m, :import, module) end)
+          {{:., [], [module_ast, name]}, [], xs}
         else
           x
         end
@@ -80,16 +81,13 @@ defmodule Base do
       x -> x
     end)
 
-    quote do
-      import unquote(module), unquote(Map.to_list(opts))
-      unquote(updated_ast)
-    end
+    updated_ast
   end
   #def do_open_without_info()
   #def do_open_with_info()
 end
 
-defmodule Base.Curry do
+defmodule Bask.Curry do
   defmacro __using__(_opts) do
     quote do
       @before_compile unquote(__MODULE__)
@@ -145,7 +143,7 @@ defmodule Base.Curry do
 
       defs
     end)
-    |> case do x -> _ = IO.puts(Macro.to_string(x)) ; x end
+    #|> case do x -> _ = IO.puts(Macro.to_string(x)) ; x end
   end
 
   def name_x_arity({:when, _, [{name, _, args} | _ ]}), do: {name, Enum.count(args)}
@@ -187,8 +185,11 @@ defmodule Base.Curry do
   end
 end
 
-defmodule Base.Data.Function do
-  use Base.Curry
+defmodule Bask.Data.Function do
+  use Bask.Curry
 
   defcurried const(a, _), do: a
+
+  defcurried flip(f, x, y) when is_function(f, 2), do: f.(y, x)
+  defcurried flip(f, x, y) when is_function(f, 1), do: f.(y).(x)
 end

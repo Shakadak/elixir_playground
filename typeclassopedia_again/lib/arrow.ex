@@ -1,11 +1,10 @@
 defmodule Arrow do
   defmacro definstance(name, category, do: body) do
-    IO.inspect(category, label: "Arrow.category")
     quote do
       defmodule unquote(name) do
-        use Base.Curry
+        use Bask.Curry
 
-        import Base
+        import Bask
 
         unquote(body)
 
