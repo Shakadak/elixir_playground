@@ -103,4 +103,25 @@ defmodule PatternMetonymsTest do
     assert TestVL1.safeHead([]) == :Nothing
     assert TestVL1.safeHead([1]) == {:Just, 1}
   end
+
+  test "pattern safe head" do
+    defmodule TestPL1 do
+      import PatternMetonyms
+
+      def uncons([]), do: :Nothing
+      def uncons([x | xs]), do: {:Just, {x, xs}}
+
+      pattern justHead(x) <- (uncons -> {:Just, {x, _}})
+
+      def safeHead(xs) do
+        view xs do
+          justHead(x) -> {:Just, x}
+          _ -> :Nothing
+        end
+      end
+    end
+
+    assert TestPL1.safeHead([]) == :Nothing
+    assert TestPL1.safeHead([1]) == {:Just, 1}
+  end
 end
