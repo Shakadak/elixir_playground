@@ -65,4 +65,42 @@ defmodule PatternMetonymsTest do
       end
     end
   end
+
+  test "view maybe pair" do
+    defmodule TestVM2 do
+      import PatternMetonyms
+
+      pattern just2(a, b) = {:Just, {a, b}}
+
+      def f(x) do
+        view x do
+          just2(x, y) -> x + y
+          :Nothing -> 0
+        end
+      end
+
+      def foo, do: f(just2(3, 2))
+    end
+
+    assert TestVM2.foo == 5
+  end
+
+  test "view safe head" do
+    defmodule TestVL1 do
+      import PatternMetonyms
+
+      def uncons([]), do: :Nothing
+      def uncons([x | xs]), do: {:Just, {x, xs}}
+
+      def safeHead(xs) do
+        view xs do
+          (uncons -> {:Just, {x, _}}) -> {:Just, x}
+          _ -> :Nothing
+        end
+      end
+    end
+
+    assert TestVL1.safeHead([]) == :Nothing
+    assert TestVL1.safeHead([1]) == {:Just, 1}
+  end
 end

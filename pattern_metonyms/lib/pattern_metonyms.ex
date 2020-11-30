@@ -27,7 +27,7 @@ defmodule PatternMetonyms do
     # _ = IO.inspect(pat, label: "implicit bidirectional(pat)")
     {name, meta, args} = lhs
     quote do
-      defmacro unquote({name, meta, [:viewing | args]}) do
+      defmacro unquote({:"$pattern_metonyms_viewing_#{name}", meta, args}) do
         ast_args = unquote(Macro.escape(args))
         args = unquote(args)
         relate = fn {{name, _, con}, substitute} -> {{name, con}, substitute} end
@@ -87,7 +87,7 @@ defmodule PatternMetonyms do
   defmacro pattern({:<-, _, [lhs, pat]}) do
     {name, meta, args} = lhs
     quote do
-      defmacro unquote({name, meta, [:viewing | args]}) do
+      defmacro unquote({:"$pattern_metonyms_viewing_#{name}", meta, args}) do
         ast_args = unquote(Macro.escape(args))
         args = unquote(args)
         relate = fn {{name, _, con}, substitute} -> {{name, con}, substitute} end
@@ -162,8 +162,7 @@ defmodule PatternMetonyms do
   end
 
   defmacro pattern(ast) do
-    _ = IO.inspect(ast, label: "unrecognizable pattern")
-    raise("pattern not recognized")
+    raise("pattern not recognized: #{Macro.to_string(ast)}")
   end
 
   # TODO : when using
@@ -171,6 +170,86 @@ defmodule PatternMetonyms do
   #   <pattern>(...) -> ...
   # end
   # call the pattern with an added argument telling the macro that it is in a match
+  #defmacro view(value, do: {:__block__, _, clauses}) do
+  #  _ = IO.inspect(value, label: "view block value")
+  #  _ = IO.inspect(clauses, label: "view block clauses")
+  #  :ok
+  #end
+
+  defmacro view(data, do: clauses) when is_list(clauses) do
+    [last | rev_clauses] = Enum.reverse(clauses)
+
+    rev_tail = case last do
+      {:->, _, [[lhs = {name, meta, con}], rhs]} when is_atom(name) and is_list(meta) and is_atom(con) ->
+        # presumably a catch all pattern
+        last_ast = quote do
+          case unquote(data) do
+            unquote(lhs) -> unquote(rhs)
+          end
+        end
+
+        [last_ast]
+
+      penultimate ->
+        last_ast = quote do
+          raise(CaseClauseError, term: unquote(data))
+        end
+
+        [last_ast, penultimate]
+    end
+
+    ast = Enum.reduce(rev_tail ++ rev_clauses, fn x, acc -> view_folder(x, acc, data, __CALLER__) end)
+
+    ast
+    #|> case do x -> _ = IO.puts("view:\n#{Macro.to_string(x)}") ; x end
+  end
+
+  def view_folder({:->, _, [[[{:->, _, [[{name, meta, nil}], pat]}]], rhs]}, acc, data, _caller_env) do
+    call = {name, meta, [data]}
+    quote do
+      case unquote(call) do
+        unquote(pat) -> unquote(rhs)
+        _ -> unquote(acc)
+      end
+    end
+  end
+
+  def view_folder({:->, meta_clause, [[{name, meta, con} = call], rhs]}, acc, data, caller_env) when is_atom(name) and is_list(meta) and is_list(con) do
+    augmented_call = {:"$pattern_metonyms_viewing_#{name}", meta, con}
+    case Macro.expand(augmented_call, caller_env) do
+      # didn't expand because didn't exist, so we let other macros do their stuff later
+      ^augmented_call ->
+        quote do
+          case unquote(data) do
+            unquote(call) -> unquote(rhs)
+            _ -> unquote(acc)
+          end
+        end
+
+      # can this recurse indefinitely ?
+      new_call ->
+        new_clause = {:->, meta_clause, [[new_call], rhs]}
+        view_folder(new_clause, acc, data, caller_env)
+    end
+  end
+
+  def view_folder({:->, _, [[lhs = {name, meta, con}], rhs]}, acc, data, _caller_env) when is_atom(name) and is_list(meta) and is_atom(con) do
+    quote do
+      case unquote(data) do
+        unquote(lhs) -> unquote(rhs)
+        _ -> unquote(acc)
+      end
+    end
+  end
+
+  def view_folder({:->, _, [[lhs], rhs]}, acc, data, _caller_env) do
+    quote do
+      case unquote(data) do
+        unquote(lhs) -> unquote(rhs)
+        _ -> unquote(acc)
+      end
+    end
+  end
 
   # Utils
 
