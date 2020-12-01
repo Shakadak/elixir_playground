@@ -160,27 +160,60 @@ defmodule PatternMetonyms do
   # pat = {{:r, [], Elixir}, {:a, [], Elixir}}                     # {r, a}
   # lhs2 = {:polar, [], [{:r, [], Elixir}, {:a, [], Elixir}]}      # polar(r, a)
   # expr = {:polarPoint, [], [{:r, [], Elixir}, {:a, [], Elixir}]} # polarPoint(r, a)
-  defmacro pattern(where = {:when, _, [link = {:<-, _, [lhs, view = [{:->, _, [[fun], pat]}]]}, builder = {:=, _, [lhs2, expr]}]}) do
-    _ = IO.inspect(where,   label: "explicit bidirectional(where)")
-    _ = IO.inspect(link,    label: "explicit bidirectional(link)")
-    _ = IO.inspect(lhs,     label: "explicit bidirectional(lhs)")
-    _ = IO.inspect(view,    label: "explicit bidirectional(view)")
-    _ = IO.inspect(fun,     label: "explicit bidirectional(fun)")
-    _ = IO.inspect(pat,     label: "explicit bidirectional(pat)")
-    _ = IO.inspect(builder, label: "explicit bidirectional(builder)")
-    _ = IO.inspect(lhs2,    label: "explicit bidirectional(lhs2)")
-    _ = IO.inspect(expr,    label: "explicit bidirectional(expr)")
-  end
+  defmacro pattern({:when, _, [{:<-, _, [lhs, view = [{:->, _, [[_], pat]}]]}, {:=, _, [lhs2, expr]}]}) do
+    {name, meta, args} = lhs
+    {^name, _meta2, args2} = lhs2
 
-  # explicit bidirectional
-  defmacro pattern(where = {:when, _, [link = {:<-, _, [lhs, pat]}, builder = {:=, _, [lhs2, expr]}]}) do
-    _ = IO.inspect(where,   label: "explicit bidirectional(where)")
-    _ = IO.inspect(link,    label: "explicit bidirectional(link)")
-    _ = IO.inspect(lhs,     label: "explicit bidirectional(lhs)")
-    _ = IO.inspect(pat,     label: "explicit bidirectional(pat)")
-    _ = IO.inspect(builder, label: "explicit bidirectional(builder)")
-    _ = IO.inspect(lhs2,    label: "explicit bidirectional(lhs2)")
-    _ = IO.inspect(expr,    label: "explicit bidirectional(expr)")
+    quote do
+      defmacro unquote({:"$pattern_metonyms_viewing_#{name}", meta, args}) do
+        ast_args = unquote(Macro.escape(args))
+        args = unquote(args)
+        relate = fn {{name, _, con}, substitute} -> {{name, con}, substitute} end
+        args_relation = Map.new(Enum.zip(ast_args, args), relate)
+
+        ast_pat = unquote(Macro.escape(pat))
+
+        ast_pat_updated = Macro.prewalk(ast_pat, fn x ->
+          case {ast_var?(x), x} do
+            {false, x} -> x
+            {true, {name, _, con}} ->
+              case Map.fetch(args_relation, {name, con}) do
+                :error -> x
+                {:ok, substitute} -> substitute
+              end
+          end
+        end)
+
+        ast_view = unquote(Macro.escape(view))
+
+        import Access
+        updated_view = put_in(ast_view, [at(0), elem(2), at(1)], ast_pat_updated)
+        #updated_view = [{:->, meta, [[fun], ast_pat_updated]}]
+        #|> case do x -> _ = IO.puts("#{unquote(name)} [expr bidirectional]:\n#{Macro.to_string(x)}") ; x end
+      end
+
+      defmacro unquote(lhs2) do
+        ast_args = unquote(Macro.escape(args2))
+        args = unquote(args2)
+        relate = fn {{name, _, con}, substitute} -> {{name, con}, substitute} end
+        args_relation = Map.new(Enum.zip(ast_args, args), relate)
+
+        ast_expr = unquote(Macro.escape(expr))
+
+        Macro.prewalk(ast_expr, fn x ->
+          case {ast_var?(x), x} do
+            {false, x} -> x
+            {true, {name, _, con}} ->
+              case Map.fetch(args_relation, {name, con}) do
+                :error -> x
+                {:ok, substitute} -> substitute
+              end
+          end
+        end)
+        #|> case do x -> _ = IO.puts("#{unquote(name)} [explicit bidirectional]:\n#{Macro.to_string(x)}") ; x end
+      end
+    end
+    #|> case do x -> _ = IO.puts("pattern [explicit bidirectional]:\n#{Macro.to_string(x)}") ; x end
   end
 
   defmacro pattern(ast) do
