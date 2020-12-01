@@ -22,9 +22,6 @@ defmodule PatternMetonyms do
   # lhs = {:just2, [], [{:a, [], Elixir}, {:b, [], Elixir}]}  # just2(a, b)
   # pat = {:just, [], [{{:a, [], Elixir}, {:b, [], Elixir}}]} # just({a, b})
   defmacro pattern(_syn = {:=, _, [lhs, pat]}) do
-    # _ = IO.inspect(syn, label: "implicit bidirectional(syn)")
-    # _ = IO.inspect(lhs, label: "implicit bidirectional(lhs)")
-    # _ = IO.inspect(pat, label: "implicit bidirectional(pat)")
     {name, meta, args} = lhs
     quote do
       defmacro unquote({:"$pattern_metonyms_viewing_#{name}", meta, args}) do
@@ -73,12 +70,37 @@ defmodule PatternMetonyms do
   end
 
   # unidirectional / with view
-  defmacro pattern(syn = {:<-, _, [lhs, view = [{:->, _, [[fun], pat]}]]}) do
-    _ = IO.inspect(syn,  label: "implicit bidirectional(syn)")
-    _ = IO.inspect(lhs,  label: "unidirectional(lhs)")
-    _ = IO.inspect(view, label: "unidirectional(view)")
-    _ = IO.inspect(fun,  label: "unidirectional(fun)")
-    _ = IO.inspect(pat,  label: "unidirectional(pat)")
+  defmacro pattern({:<-, _, [lhs, view = [{:->, _, [[_], pat]}]]}) do
+    {name, meta, args} = lhs
+    quote do
+      defmacro unquote({:"$pattern_metonyms_viewing_#{name}", meta, args}) do
+        ast_args = unquote(Macro.escape(args))
+        args = unquote(args)
+        relate = fn {{name, _, con}, substitute} -> {{name, con}, substitute} end
+        args_relation = Map.new(Enum.zip(ast_args, args), relate)
+
+        ast_pat = unquote(Macro.escape(pat))
+
+        ast_pat_updated = Macro.prewalk(ast_pat, fn x ->
+          case {ast_var?(x), x} do
+            {false, x} -> x
+            {true, {name, _, con}} ->
+              case Map.fetch(args_relation, {name, con}) do
+                :error -> x
+                {:ok, substitute} -> substitute
+              end
+          end
+        end)
+
+        ast_view = unquote(Macro.escape(view))
+
+        import Access
+        updated_view = put_in(ast_view, [at(0), elem(2), at(1)], ast_pat_updated)
+        #updated_view = [{:->, meta, [[fun], ast_pat_updated]}]
+        #|> case do x -> _ = IO.puts("#{unquote(name)} [unidirectional]:\n#{Macro.to_string(x)}") ; x end
+      end
+    end
+    #|> case do x -> _ = IO.puts("pattern [unidirectional]:\n#{Macro.to_string(x)}") ; x end
   end
 
   # unidirectional
