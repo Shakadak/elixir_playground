@@ -155,7 +155,9 @@ defmodule PatternMetonymsTest do
       end
     end
 
-    assert TestEPC1.foo(TestEPC1.new_cartesian(3, 3)) == :ok
+    # results from : https://keisan.casio.com/exec/system/1223526375
+    # angle unit radian, 18digit
+    assert TestEPC1.foo(TestEPC1.new_cartesian(3, 3)) == %{radius: 4.24264068711928515, theta: 0.78539816339744831}
   end
 
   test "explicit pattern string x integer" do
