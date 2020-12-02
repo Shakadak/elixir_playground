@@ -1,0 +1,118 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+!_TAG_PROGRAM_VERSION	5.9~svn20110310	//
+Brut	lib/rules_base.ex	/^defmodule Rules.Graph.Brut do$/;"	m
+Dot	lib/rules_dot.ex	/^defmodule Rules.Graph.Brut.Dot do$/;"	m
+If	lib/rules_beta_expanded_if.ex	/^defmodule Rules.Graph.Brut.Dot.BetaExpanded.If do$/;"	m
+Input	lib/rules_beta_expanded.ex	/^defmodule Rules.Graph.Brut.Dot.BetaExpanded.Input do$/;"	m
+Inspect	lib/monad.logger.ex	/^  defimpl Inspect, for: Monad.Logger do$/;"	i
+Inversion_	lib/rules_inversion.ex	/^defmodule Rules.Graph.Brut.Inversion_ do$/;"	m
+Logger	lib/monad.logger.ex	/^defmodule Monad.Logger do$/;"	m
+Logger	lib/rules_base_logger.ex	/^defmodule Rules.Base.Logger do$/;"	m
+Logger	lib/rules_inversion_logger.ex	/^defmodule Rules.Inversion_.Logger do$/;"	m
+Rules	lib/rules.ex	/^defmodule Rules do$/;"	m
+allocation	lib/rules_base.ex	/^  def allocation(%{order: order, zones: zones, stocks: stocks, regions: regions}) do$/;"	f
+allocation	lib/rules_base_logger.ex	/^  def allocation(%{order: order, zones: zones, stocks: stocks, regions: regions}) do$/;"	f
+allocation	lib/rules_beta_expanded.ex	/^  def allocation(input) do$/;"	f
+allocation	lib/rules_beta_expanded_if.ex	/^  def allocation(input) do$/;"	f
+allocation	lib/rules_dot.ex	/^  def allocation(input) do$/;"	f
+allocation	lib/rules_inversion.ex	/^  def allocation(f) do$/;"	f
+allocation	lib/rules_inversion_logger.ex	/^  def allocation(f) do$/;"	f
+ap	lib/monad.logger.ex	/^  def ap(mf, ma) do$/;"	f
+bind	lib/monad.logger.ex	/^  def bind(ma, f) do$/;"	f
+bool	lib/rules_beta_expanded_if.ex	/^  def bool(condition, true_branch, false_branch, input) do$/;"	f
+bool	lib/rules_inversion.ex	/^  def bool(condition, true_branch, false_branch, f) do$/;"	f
+exclusion	lib/rules_base.ex	/^  def exclusion(%{order: order, zones: zones}) do$/;"	f
+exclusion	lib/rules_base_logger.ex	/^  def exclusion(%{order: order, zones: zones}) do$/;"	f
+exclusion	lib/rules_beta_expanded.ex	/^  def exclusion(input) do$/;"	f
+exclusion	lib/rules_beta_expanded_if.ex	/^  def exclusion(input) do$/;"	f
+exclusion	lib/rules_dot.ex	/^  def exclusion(input) do$/;"	f
+exclusion	lib/rules_inversion.ex	/^  def exclusion(f) do$/;"	f
+exclusion	lib/rules_inversion_logger.ex	/^  def exclusion(f) do$/;"	f
+fulfillement	lib/rules_base.ex	/^  def fulfillement(%{order: order}) do$/;"	f
+fulfillement	lib/rules_base_logger.ex	/^  def fulfillement(%{order: order}) do$/;"	f
+fulfillement	lib/rules_beta_expanded.ex	/^  def fulfillement(input) do$/;"	f
+fulfillement	lib/rules_beta_expanded_if.ex	/^  def fulfillement(input) do$/;"	f
+fulfillement	lib/rules_dot.ex	/^  def fulfillement(input) do$/;"	f
+fulfillement	lib/rules_inversion.ex	/^  def fulfillement(f) do$/;"	f
+fulfillement	lib/rules_inversion_logger.ex	/^  def fulfillement(f) do$/;"	f
+generate_regions	lib/rules_base.ex	/^  def generate_regions do$/;"	f
+generate_regions	lib/rules_base_logger.ex	/^  def generate_regions do$/;"	f
+generate_regions	lib/rules_beta_expanded.ex	/^  def generate_regions do$/;"	f
+generate_regions	lib/rules_beta_expanded_if.ex	/^  def generate_regions do$/;"	f
+generate_regions	lib/rules_dot.ex	/^  def generate_regions do$/;"	f
+generate_regions	lib/rules_inversion.ex	/^  def generate_regions do$/;"	f
+generate_regions	lib/rules_inversion_logger.ex	/^  def generate_regions do$/;"	f
+generate_stocks	lib/rules_base.ex	/^  def generate_stocks do$/;"	f
+generate_stocks	lib/rules_base_logger.ex	/^  def generate_stocks do$/;"	f
+generate_stocks	lib/rules_beta_expanded.ex	/^  def generate_stocks do$/;"	f
+generate_stocks	lib/rules_beta_expanded_if.ex	/^  def generate_stocks do$/;"	f
+generate_stocks	lib/rules_dot.ex	/^  def generate_stocks do$/;"	f
+generate_stocks	lib/rules_inversion.ex	/^  def generate_stocks do$/;"	f
+generate_stocks	lib/rules_inversion_logger.ex	/^  def generate_stocks do$/;"	f
+generate_zones	lib/rules_base.ex	/^  def generate_zones do$/;"	f
+generate_zones	lib/rules_base_logger.ex	/^  def generate_zones do$/;"	f
+generate_zones	lib/rules_beta_expanded.ex	/^  def generate_zones do$/;"	f
+generate_zones	lib/rules_beta_expanded_if.ex	/^  def generate_zones do$/;"	f
+generate_zones	lib/rules_dot.ex	/^  def generate_zones do$/;"	f
+generate_zones	lib/rules_inversion.ex	/^  def generate_zones do$/;"	f
+generate_zones	lib/rules_inversion_logger.ex	/^  def generate_zones do$/;"	f
+hello	lib/rules.ex	/^  def hello do$/;"	f
+inspect	lib/monad.logger.ex	/^    def inspect(%Monad.Logger{run_logger: {logs, x}}, opts), do: Inspect.Algebra.concat(["(", Inspect.Algebra.to_doc(logs, opts), ", ", Inspect.Algebra.to_doc(x, opts), ")"])$/;"	f
+join	lib/monad.logger.ex	/^  def join(mma) do$/;"	f
+leadtime	lib/rules_base.ex	/^  def leadtime(%{order: order, stock: stock, zone: zone, region: region}) do$/;"	f
+leadtime	lib/rules_base_logger.ex	/^  def leadtime(%{order: order, stock: stock, zone: zone, region: region}) do$/;"	f
+leadtime	lib/rules_beta_expanded.ex	/^  def leadtime(input) do$/;"	f
+leadtime	lib/rules_beta_expanded_if.ex	/^  def leadtime(input) do$/;"	f
+leadtime	lib/rules_dot.ex	/^  def leadtime(input) do$/;"	f
+leadtime	lib/rules_inversion.ex	/^  def leadtime(f) do$/;"	f
+leadtime	lib/rules_inversion_logger.ex	/^  def leadtime(f) do$/;"	f
+lift_a	lib/monad.logger.ex	/^  def lift_a(mf, ma) do$/;"	f
+lift_a2	lib/monad.logger.ex	/^  def lift_a2(mf, ma, mb) do$/;"	f
+lift_a3	lib/monad.logger.ex	/^  def lift_a3(mf, ma, mb, mc) do$/;"	f
+log	lib/monad.logger.ex	/^  def log(s), do: new({[s], {}})$/;"	f
+logs	lib/monad.logger.ex	/^  def logs(ss), do: new({ss, {}})$/;"	f
+m	lib/monad.logger.ex	/^  defmacro m(do: {:__block__, _context, body}) do$/;"	a
+map	lib/monad.logger.ex	/^  def map(ma, f)  do$/;"	f
+new	lib/monad.logger.ex	/^  def new({x, _} = t) when is_list(x), do: %Monad.Logger{run_logger: t}$/;"	f
+pure	lib/monad.logger.ex	/^  def pure(x), do: new({[], x})$/;"	f
+rec_mdo	lib/monad.logger.ex	/^  def rec_mdo([expression | tail]) do$/;"	f
+rec_mdo	lib/monad.logger.ex	/^  def rec_mdo([line]) do$/;"	f
+rec_mdo	lib/monad.logger.ex	/^  def rec_mdo([{:<-, _context, [binding, expression]} | tail]) do$/;"	f
+rec_mdo	lib/monad.logger.ex	/^  def rec_mdo([{:<-, context, _}]) do$/;"	f
+rec_mdo	lib/monad.logger.ex	/^  def rec_mdo([{:=, _context, [_binding, _expression]} = line | tail]) do$/;"	f
+rules_result	lib/rules_base.ex	/^  def rules_result, do: Enum.random(["", "12"])$/;"	f
+rules_result	lib/rules_base_logger.ex	/^  def rules_result, do: Enum.random(["", "12"])$/;"	f
+rules_result	lib/rules_beta_expanded.ex	/^  def rules_result, do: Enum.random(["", "12"])$/;"	f
+rules_result	lib/rules_beta_expanded_if.ex	/^  def rules_result, do: Enum.random(["", "12"])$/;"	f
+rules_result	lib/rules_dot.ex	/^  def rules_result, do: Enum.random(["", "12"])$/;"	f
+rules_result	lib/rules_inversion.ex	/^  def rules_result, do: Enum.random(["", "12"])$/;"	f
+rules_result	lib/rules_inversion_logger.ex	/^  def rules_result, do: Enum.random(["", "12"])$/;"	f
+sourcing	lib/rules_base.ex	/^  def sourcing(%{order: order, zones: zones, stocks: stocks}) do$/;"	f
+sourcing	lib/rules_base_logger.ex	/^  def sourcing(%{order: order, zones: zones, stocks: stocks}) do$/;"	f
+sourcing	lib/rules_beta_expanded.ex	/^  def sourcing(input) do$/;"	f
+sourcing	lib/rules_beta_expanded_if.ex	/^  def sourcing(input) do$/;"	f
+sourcing	lib/rules_dot.ex	/^  def sourcing(input) do$/;"	f
+sourcing	lib/rules_inversion.ex	/^  def sourcing(f) do$/;"	f
+sourcing	lib/rules_inversion_logger.ex	/^  def sourcing(f) do$/;"	f
+split2	lib/rules_inversion_logger.ex	/^  def split2(condition, true_branch, false_branch, f) do$/;"	f
+start	lib/rules_base.ex	/^  def start(%{order: order}) do$/;"	f
+start	lib/rules_base_logger.ex	/^  def start(%{order: order}) do$/;"	f
+start	lib/rules_beta_expanded.ex	/^  def start(input) do$/;"	f
+start	lib/rules_beta_expanded_if.ex	/^  def start(input) do$/;"	f
+start	lib/rules_dot.ex	/^  def start(input) do$/;"	f
+start	lib/rules_inversion.ex	/^  def start(f) do$/;"	f
+start	lib/rules_inversion_logger.ex	/^  def start(f) do$/;"	f
+start_	lib/rules_inversion.ex	/^  def start_(f) do$/;"	f
+straight	lib/rules_inversion_logger.ex	/^  def straight(single_branch, f) do$/;"	f
+to_end	lib/rules_base.ex	/^  def to_end(%{order: order}) do$/;"	f
+to_end	lib/rules_base_logger.ex	/^  def to_end(%{order: order}) do$/;"	f
+to_end	lib/rules_beta_expanded.ex	/^  def to_end(input) do$/;"	f
+to_end	lib/rules_beta_expanded_if.ex	/^  def to_end(input) do$/;"	f
+to_end	lib/rules_dot.ex	/^  def to_end(input) do$/;"	f
+to_end	lib/rules_inversion.ex	/^  def to_end(f) do$/;"	f
+to_end	lib/rules_inversion_logger.ex	/^  def to_end(f) do$/;"	f
+wrap	lib/rules_inversion_logger.ex	/^  def wrap(name, output) do$/;"	f
