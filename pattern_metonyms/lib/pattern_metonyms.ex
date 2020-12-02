@@ -220,37 +220,27 @@ defmodule PatternMetonyms do
     raise("pattern not recognized: #{Macro.to_string(ast)}")
   end
 
-  # TODO : when using
-  # view x do
-  #   <pattern>(...) -> ...
-  # end
-  # call the pattern with an added argument telling the macro that it is in a match
-  #defmacro view(value, do: {:__block__, _, clauses}) do
-  #  _ = IO.inspect(value, label: "view block value")
-  #  _ = IO.inspect(clauses, label: "view block clauses")
-  #  :ok
-  #end
+  # view
 
   defmacro view(data, do: clauses) when is_list(clauses) do
     [last | rev_clauses] = Enum.reverse(clauses)
 
-    rev_tail = case last do
-      {:->, _, [[lhs = {name, meta, con}], rhs]} when is_atom(name) and is_list(meta) and is_atom(con) ->
-        # presumably a catch all pattern
-        last_ast = quote do
-          case unquote(data) do
-            unquote(lhs) -> unquote(rhs)
-          end
-        end
 
-        [last_ast]
+    rev_tail = case view_folder(last, nil, data, __CALLER__) do
+      # presumably a catch all pattern
+      case_ast = {:case, [], [_, [do: [{:->, _, [[_lhs = {name, meta, con}], _rhs]}, _]]]} when is_atom(name) and is_list(meta) and is_atom(con) ->
 
-      penultimate ->
-        last_ast = quote do
+        import Access
+        case_ast = update_in(case_ast, [elem(2), at(1), at(0), elem(1)], &Enum.take(&1, 1))
+
+        [case_ast]
+
+      _ ->
+        fail_ast = quote do
           raise(CaseClauseError, term: unquote(data))
         end
 
-        [last_ast, penultimate]
+        [fail_ast, last]
     end
 
     ast = Enum.reduce(rev_tail ++ rev_clauses, fn x, acc -> view_folder(x, acc, data, __CALLER__) end)
