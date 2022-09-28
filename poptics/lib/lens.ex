@@ -1,12 +1,7 @@
 defmodule Lens do
-  @enforce_keys [:view, :update]
-  defstruct [:view, :update]
+  import Type
 
-  defmacro lens(view, update) do
-    quote do
-      %unquote(__MODULE__){view: unquote(view), update: unquote(update)}
-    end
-  end
+  record lens(a, b, s, t) = lens %{view: (s -> a), update: ({b, s} -> t)}
 
   def pi1 do
     view = fn {x, _} -> x end

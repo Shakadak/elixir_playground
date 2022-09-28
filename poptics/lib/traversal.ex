@@ -48,6 +48,9 @@ defmodule Either do
   import Type
 
   data either(a, b) = left(a) | right(b)
+
+  def either(f, _, left(x)), do: left(f.(x))
+  def either(_, g, right(y)), do: right(g.(y))
 end
 
 defmodule FunList do
@@ -69,23 +72,23 @@ defmodule FunList do
 
 end
 
-defimpl Functor, for: FunList do
+defmodule Functor.FunList do
   import Curry
   import FunList
 
-  def map(done(t), f), do: done(f.(t))
-  def map(more(x, l), f), do: more(x, map(l, curry(compose/3).(f)))
+  def map(f, done(t)), do: done(f.(t))
+  def map(f, more(x, l)), do: more(x, map(curry(compose/3).(f), l))
 
   def compose(f, g, x), do: f.(g.(x))
 end
 
-defimpl Applicative, for: FunList do
+defmodule Applicative.FunList do
   import FunList
   import Curry
 
   def pure(t), do: done(t)
-  def ap(done(f), l_), do: Functor.map(l_, f)
-  def ap(more(x, l), l_), do: more(x, Functor.map(l, curry(flip/3)) |> ap(l_))
+  def ap(done(f), l_), do: Functor.FunList.map(f, l_)
+  def ap(more(x, l), l_), do: more(x, Functor.FunList.map(curry(flip/3), l) |> ap(l_))
 
   def flip(f, x, y), do: f.(y, x)
 end
@@ -94,14 +97,17 @@ defmodule Tree do
   import Type
   data tree(a) = empty | node(tree(a), a, tree(a))
 
+  require Applicative
+
   import Curry
 
-  def inorder(mod, _m, empty()), do: Module.concat(Applicative, mod).pure(empty())
+  def inorder(mod, _m, empty()), do: Applicative.pure(empty(), mod)
   def inorder(mod, m, node(t, x, u)) do
-    Module.concat(Applicative, mod).pure(curry(node/3))
-    |> Applicative.ap(inorder(mod, m, t))
-    |> Applicative.ap(m.(x))
-    |> Applicative.ap(inorder(mod, m, u))
+    import Applicative
+    pure(curry(node/3), mod)
+    |> ap(inorder(mod, m, t), mod)
+    |> ap(m.(x), mod)
+    |> ap(inorder(mod, m, u), mod)
   end
 end
 

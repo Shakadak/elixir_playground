@@ -1,24 +1,9 @@
 defmodule Prism do
-  @enforce_keys [:match, :build]
-  defstruct [:match, :build]
+  import Type
 
-  defmacro prism(match, build) do
-    quote do
-      %unquote(__MODULE__){match: unquote(match), build: unquote(build)}
-    end
-  end
+  record prism(a, b, s, t) = prism %{match: (s -> either(t, a)), build: (b -> t)}
 
-  defmacro right(x) do
-    quote do
-      {:Right, unquote(x)}
-    end
-  end
-
-  defmacro left(x) do
-    quote do
-      {:Left, unquote(x)}
-    end
-  end
+  import Either
 
   def the do
     match = fn

@@ -1,19 +1,24 @@
-defprotocol Functor do
-  @doc "map : f a -> (a -> b) -> f b"
-  def map(t, f)
+defmodule Functor do
+  require Class
+
+  @doc "map : (a -> b) -> f a -> f b"
+  Class.mk :map, 2
 end
 
-defprotocol Applicative do
-  @doc "pure : a -> f a"
-  def pure(x)
+defmodule Applicative do
+  require Class
 
-  @doc "ap : f (a -> b) -> f a -> f b"
-  def ap(f, x)
+  @doc "map : (a -> b) -> f a -> f b"
+  Class.mk :superclass, 0
+  Class.mk :pure, 1
+  Class.mk :ap, 2
+  Class.mk :lift_a2, 3
 end
 
-defprotocol Profunctor do
-  @doc "dimap : p a b -> (a -> a') -> (b -> b') -> p a' b'"
-  def dimap(x, f, g)
+defmodule Profunctor do
+  require Class
+  @doc "dimap : (a -> a') -> (b -> b') -> p a b -> p a' b'"
+  Class.mk :dimap, 3
 end
 
 defprotocol Cartesian do
@@ -23,20 +28,22 @@ defprotocol Cartesian do
   def second(x)
 end
 
-defprotocol Cocartesian do
+defmodule Cocartesian do
+  require Class
+
   @doc "left : p a b -> p (a + c) (b + c)"
-  def left(x)
+  Class.mk :left, 1
   @doc "right : p a b -> p (c + a) (c + b)"
-  def right(x)
+  Class.mk :right, 1
 end
 
-defimpl Profunctor, for: Function do
-  def dimap(h, f, g) do
+defmodule Profunctor.Function do
+  def dimap(f, g, h) do
     fn x -> g.(h.(f.(x))) end
   end
 end
 
-defimpl Cartesian, for: Function do
+defmodule Cartesian.Function do
   import Curry
 
   def cross(f, g, {x, y}), do: {f.(x), g.(y)}
@@ -45,7 +52,7 @@ defimpl Cartesian, for: Function do
   def second(h), do: curry(cross/3).(&Function.identity/1, h)
 end
 
-defimpl Cocartesian, for: Function do
+defmodule Cocartesian.Function do
   def plus(f, g) do
     require Either
     fn

@@ -10,16 +10,16 @@ defmodule State do
   end
 end
 
-defimpl Functor, for: State do
+defmodule Functor.State do
   import State
 
-  def map(m, f), do: state(fn s ->
+  def map(f, m), do: state(fn s ->
     {x, s_} = m.run.(s)
     {f.(x), s_}
   end)
 end
 
-defimpl Applicative, for: State do
+defmodule Applicative.State do
   import State
 
   def pure(x), do: state(fn s -> {x, s} end)
