@@ -3,7 +3,7 @@ end
 
 defmodule UpStar do
   import Type
-  record up_star(f, a, b) = up_star %{un_up_star: (a -> f(b))}
+  record up_star(f, a, b) = up_star %{unUpStar: (a -> f(b))}
 end
 
 defmodule Profunctor.UpStar do
@@ -28,6 +28,7 @@ defmodule Cartesian.UpStar do
 
   def mk(functor) do
     %{
+      superclass: fn -> Profunctor.UpStar end,
       first: &first(&1, functor),
       second: &second(&1, functor),
     }
@@ -39,17 +40,17 @@ defmodule Cartesian.UpStar do
 
   def compose(f, g, x), do: f.(g.(x))
 
-  def first(up_star(un_up_star), functor) do
+  def first(up_star(unUpStar), functor) do
     id = &Function.identity/1
-    f = &cross(un_up_star, id, &1)
+    f = &cross(unUpStar, id, &1)
     rstrength = &rstrength(&1, functor)
     go = &compose(rstrength, f, &1)
     up_star(go)
   end
 
-  def second(up_star(un_up_star), functor) do
+  def second(up_star(unUpStar), functor) do
     id = &Function.identity/1
-    f = &cross(id, un_up_star, &1)
+    f = &cross(id, unUpStar, &1)
     lstrength = &lstrength(&1, functor)
     go = &compose(lstrength, f, &1)
     up_star(go)
@@ -65,6 +66,7 @@ defmodule Cocartesian.UpStar do
 
   def mk(applicative) do
     %{
+      superclass: fn -> Profunctor.UpStar end,
       left: &left(&1, applicative),
       right: &right(&1, applicative),
     }
@@ -83,14 +85,32 @@ defmodule Cocartesian.UpStar do
 
   def right(up_star(unUpStar), applicative) do
     functor = Applicative.superclass(applicative)
-    left = &Either.left(&1)
-    right = &Either.right(&1)
-    r_ = &Functor.map(right, &1, functor)
-    pure = &Applicative.pure(&1, applicative)
-    on_left = &compose(pure, left, &1)
-    on_right = &compose(r_, unUpStar, &1)
+    on_left = &Applicative.pure(Either.left(&1), applicative)
+    on_right = fn x -> Functor.map(&Either.right(&1), unUpStar.(x), functor) end
     up_star(&Either.either(on_left, on_right, &1))
   end
 
   def compose(f, g, x), do: f.(g.(x))
+end
+
+defmodule Monoidal.UpStar do
+  import UpStar
+
+  require Applicative
+
+  def mk(applicative) do
+    %{
+      superclass: fn -> Profunctor.UpStar end,
+      empty: fn -> empty(applicative) end,
+      par: &par(&1, &2, applicative),
+    }
+  end
+
+  def pair(h, k, {x, y}, applicative) do
+    Applicative.liftA2(&{&1, &2}, h.(x), k.(y), applicative)
+  end
+
+  def empty(applicative), do: up_star(&Applicative.pure(&1, applicative))
+
+  def par(h, k, applicative), do: up_star(&pair(h.unUpStar, k.unUpStar, &1, applicative))
 end

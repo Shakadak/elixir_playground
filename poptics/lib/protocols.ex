@@ -10,9 +10,28 @@ defmodule Applicative do
 
   @doc "map : (a -> b) -> f a -> f b"
   Class.mk :superclass, 0
+  @doc "pure : a -> f a"
   Class.mk :pure, 1
+  @doc "ap : f (a -> b) -> f a -> f b"
   Class.mk :ap, 2
-  Class.mk :lift_a2, 3
+  @doc "liftA2 : (a -> b -> c) -> f a -> f b -> f c"
+  Class.mk :liftA2, 3
+
+  defmacro defaults(functor) do
+    quote do
+      def superclass, do: unquote(functor)
+      def ap(f, x), do: liftA2(&Function.identity/1, f, x)
+      def liftA2(f, x, y) do
+        require Functor
+        require Curry
+        functor = superclass()
+        f_ = curry(f, 2)
+        ap(Functor.map(&f_, x, functor), y)
+      end
+
+      defoverridable superclass: 0, ap: 2, liftA2: 3
+    end
+  end
 end
 
 defmodule Profunctor do
@@ -21,20 +40,62 @@ defmodule Profunctor do
   Class.mk :dimap, 3
 end
 
-defprotocol Cartesian do
+defmodule Cartesian do
+  require Class
+
+  Class.mk :superclass, 0
+
   @doc "first : p a b -> p {a, c} {b, c}"
-  def first(x)
-  @doc "first : p a b -> p {c, a} {c, b}"
-  def second(x)
+  Class.mk :first, 1
+  @doc "second : p a b -> p {c, a} {c, b}"
+  Class.mk :second, 1
+
+  defmacro defaults(profunctor) do
+    quote do
+      def superclass, do: unquote(profunctor)
+
+      defoverridable superclass: 0
+    end
+  end
 end
 
 defmodule Cocartesian do
   require Class
 
+  Class.mk :superclass, 0
+
   @doc "left : p a b -> p (a + c) (b + c)"
   Class.mk :left, 1
   @doc "right : p a b -> p (c + a) (c + b)"
   Class.mk :right, 1
+
+  defmacro defaults(profunctor) do
+    quote do
+      def superclass, do: unquote(profunctor)
+
+      defoverridable superclass: 0
+    end
+  end
+end
+
+defmodule Monoidal do
+  require Class
+
+  Class.mk :superclass, 0
+
+  @doc "par : p a b -> p c d -> p {a, c} {b, d}"
+  Class.mk :par, 2
+
+  @doc "empty : p 1 1"
+  Class.mk :empty, 0
+
+  defmacro defaults(profunctor) do
+    quote do
+      def superclass, do: unquote(profunctor)
+
+      defoverridable superclass: 0
+    end
+  end
 end
 
 defmodule Profunctor.Function do
@@ -63,4 +124,11 @@ defmodule Cocartesian.Function do
 
   def left(h), do: plus(h, &Function.identity/1)
   def right(h), do: plus(&Function.identity/1, h)
+end
+
+defmodule Monoidal.Function do
+  def par(f, g), do: &cross(f, g, &1)
+  def empty, do: &Function.identity/1
+
+  def cross(f, g, {x, y}), do: {f.(x), g.(y)}
 end
