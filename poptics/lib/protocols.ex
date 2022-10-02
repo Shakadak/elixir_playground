@@ -25,8 +25,8 @@ defmodule Applicative do
         require Functor
         require Curry
         functor = superclass()
-        f_ = curry(f, 2)
-        ap(Functor.map(&f_, x, functor), y)
+        f_ = Curry.curry(f, 2)
+        ap(Functor.map(f_, x, functor), y)
       end
 
       defoverridable superclass: 0, ap: 2, liftA2: 3
@@ -36,7 +36,7 @@ end
 
 defmodule Profunctor do
   require Class
-  @doc "dimap : (a -> a') -> (b -> b') -> p a b -> p a' b'"
+  @doc "dimap : (a' -> a) -> (b -> b') -> p a b -> p a' b'"
   Class.mk :dimap, 3
 end
 
@@ -105,30 +105,28 @@ defmodule Profunctor.Function do
 end
 
 defmodule Cartesian.Function do
-  import Curry
+  require Cartesian
 
-  def cross(f, g, {x, y}), do: {f.(x), g.(y)}
+  Cartesian.defaults(Profunctor.Function)
 
-  def first(h), do: curry(cross/3).(h, &Function.identity/1)
-  def second(h), do: curry(cross/3).(&Function.identity/1, h)
+  def first(h), do: fn x -> Bag.cross(h, &Bag.id/1, x) end
+  def second(h), do: fn x -> Bag.cross(&Bag.id/1, h, x) end
 end
 
 defmodule Cocartesian.Function do
-  def plus(f, g) do
-    require Either
-    fn
-      Either.left(x) -> Either.left(f.(x))
-      Either.right(y) -> Either.right(g.(y))
-    end
-  end
+  require Cocartesian
 
-  def left(h), do: plus(h, &Function.identity/1)
-  def right(h), do: plus(&Function.identity/1, h)
+  Cocartesian.defaults(Profunctor.Function)
+
+  def left(h), do: Either.plus(h, &Bag.id/1)
+  def right(h), do: Either.plus(&Bag.id/1, h)
 end
 
 defmodule Monoidal.Function do
-  def par(f, g), do: &cross(f, g, &1)
-  def empty, do: &Function.identity/1
+  require Monoidal
 
-  def cross(f, g, {x, y}), do: {f.(x), g.(y)}
+  Monoidal.defaults(Profunctor.Function)
+
+  def par(f, g), do: &Bag.cross(f, g, &1)
+  def empty, do: &Bag.id/1
 end

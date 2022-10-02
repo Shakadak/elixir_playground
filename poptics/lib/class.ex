@@ -21,7 +21,7 @@ defmodule Class do
             end
           end
         end
-        |> case do x -> _ = IO.puts("#{name}/#{unquote(arity)} ->\n#{Macro.to_string(x)}") ; x end
+        #|> case do x -> _ = IO.puts("#{name}/#{unquote(arity)} ->\n#{Macro.to_string(x)}") ; x end
       end
     end
     #|> case do x -> _ = IO.puts("mk/2 ->\n#{Macro.to_string(x)}") ; x end

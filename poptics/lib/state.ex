@@ -22,6 +22,10 @@ end
 defmodule Applicative.State do
   import State
 
+  require Applicative
+
+  Applicative.defaults(Functor.State)
+
   def pure(x), do: state(fn s -> {x, s} end)
 
   def ap(m, n) do

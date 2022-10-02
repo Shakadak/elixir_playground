@@ -46,7 +46,7 @@ defmodule Type do
 
       unquote_splicing(ast_constructors)
     end
-    |> case do x -> _ = IO.puts("data ->\n#{Macro.to_string(x)}") ; x end
+    #|> case do x -> _ = IO.puts("data ->\n#{Macro.to_string(x)}") ; x end
   end
 
   @doc false
@@ -78,6 +78,6 @@ defmodule Type do
         #|> case do x -> _ = IO.puts("#{unquote(constructor_name)} ->\n#{Macro.to_string(x)}") ; x end
       end
     end
-    |> case do x -> _ = IO.puts("record ->\n#{Macro.to_string(x)}") ; x end
+    #|> case do x -> _ = IO.puts("record ->\n#{Macro.to_string(x)}") ; x end
   end
 end

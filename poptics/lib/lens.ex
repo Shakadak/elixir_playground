@@ -1,5 +1,6 @@
 defmodule Lens do
   import Type
+  import Bag
 
   record lens(a, b, s, t) = lens %{view: (s -> a), update: ({b, s} -> t)}
 
@@ -33,6 +34,88 @@ defmodule Lens do
     lens(v, _u) = pi1()
     view = fn x -> v.(v.(x)) end
     update = fn {x_, {{_x, y}, z}} -> {{x_, y}, z} end
+
+    lens(view, update)
+  end
+
+  require Profunctor
+  require Cartesian
+
+  def lensC2P(lens(v, u), cartesian) do
+    profunctor = Cartesian.superclass(cartesian)
+    id = &Function.identity/1
+    f = &fork(v, id, &1)
+    &Profunctor.dimap(f, u, Cartesian.first(&1, cartesian), profunctor)
+  end
+
+  def lensP2C(l), do: l.(lens(&Bag.id/1, &Bag.fst/1))
+
+  def piP1(cartesian), do: lensC2P(pi1(), cartesian)
+
+  def piP1_(cartesian) do
+    profunctor = Cartesian.superclass(cartesian)
+    fst = &Bag.fst/1
+    snd = &Bag.snd/1
+    id = &Bag.id/1
+
+    f = &fork(fst, id, &1)
+    g = &cross(id, snd, &1)
+
+    &Profunctor.dimap(f, g, Cartesian.first(&1, cartesian), profunctor)
+  end
+
+  def piP11(cartesian), do: &piP1(cartesian).(piP1(cartesian).(&1))
+  def piP11_(cartesian), do: &piP1_(cartesian).(piP1_(cartesian).(&1))
+
+  def view(l, s) do
+    import Forget
+    forget(f) = l.(Cartesian.Forget).(forget(&Bag.id/1))
+    f.(s)
+  end
+
+  def set(l, b, s) do
+    l.(Cartesian.Function).(&Bag.const(b, &1)).(s)
+  end
+end
+
+defmodule Profunctor.Lens do
+  import Lens
+  import Bag
+
+  def dimap(f, g, lens(v, u)) do
+    id = &id/1
+    lens(&v.(f.(&1)), &g.(u.(cross(id, f, &1))))
+  end
+end
+
+defmodule Cartesian.Lens do
+  import Lens
+  import Bag
+
+  require Cartesian
+
+  Cartesian.defaults(Profunctor.Lens)
+
+  def first(lens(v, u)) do
+    view = &v.(fst(&1))
+
+    id = &id/1
+    fst = &fst/1
+    update = fn x ->
+      fork(&u.(cross(id, fst, &1)), &snd(snd(&1)), x)
+    end
+
+    lens(view, update)
+  end
+
+  def second(lens(v, u)) do
+    view = &v.(snd(&1))
+
+    id = &Function.identity/1
+    snd = &snd/1
+    update = fn x ->
+      fork(&fst(snd(&1)), &u.(cross(id, snd, &1)), x)
+    end
 
     lens(view, update)
   end
