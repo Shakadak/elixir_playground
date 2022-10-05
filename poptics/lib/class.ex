@@ -8,16 +8,13 @@ defmodule Class do
         name = unquote(name)
         case dict do
           {:__aliases__, _, _} ->
-            quote do unquote(dict).unquote(name)(unquote_splicing(args)) end
-
-          dict when is_atom(dict) ->
-            quote do unquote(dict).unquote(name)(unquote_splicing(args)) end
+            quote do unquote(__MODULE__).unquote(dict).unquote(name)(unquote_splicing(args)) end
 
           _ ->
           quote do
             case unquote(dict) do
-              dict when is_atom(dict) -> dict.unquote(name)(unquote_splicing(args))
-              %{unquote(name) => f} when is_function(f) -> f.(unquote_splicing(args))
+              dict when is_atom(dict) -> Module.concat(unquote(__MODULE__), dict).unquote(name)(unquote_splicing(args))
+              %{unquote(__MODULE__) => %{unquote(name) => f}} when is_function(f) -> f.(unquote_splicing(args))
             end
           end
         end

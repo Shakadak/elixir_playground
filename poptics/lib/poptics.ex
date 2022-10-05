@@ -10,7 +10,7 @@ defmodule Profunctor.UpStar do
   import UpStar
 
   def mk(functor) do
-    %{dimap: &dimap(&1, &2, &3, functor)}
+    %{Profunctor => %{dimap: &dimap(&1, &2, &3, functor)}}
   end
 
   def dimap(f, g, up_star(h), functor) do
@@ -26,13 +26,15 @@ defmodule Cartesian.UpStar do
 
   require Functor
 
-  def mk(functor) do
-    sc = Profunctor.UpStar.mk(functor)
-    %{
-      superclass: fn -> sc end,
-      first: &first(&1, functor),
-      second: &second(&1, functor),
+  def mk(type) do
+    profunctor = Profunctor.UpStar.mk(type)
+    cartesian = %{
+      Cartesian => %{
+        first: &first(&1, type),
+        second: &second(&1, type),
+      },
     }
+    Map.merge(profunctor, cartesian)
   end
 
   def cross(f, g, {x, y}), do: {f.(x), g.(y)}
@@ -65,29 +67,31 @@ defmodule Cocartesian.UpStar do
   require Functor
   require Either
 
-  def mk(applicative) do
-    %{
-      superclass: fn -> Profunctor.UpStar end,
-      left: &left(&1, applicative),
-      right: &right(&1, applicative),
+  def mk(type) do
+    profunctor = Profunctor.UpStar.mk(type)
+    cocartesian = %{
+      Profunctor => Profunctor.UpStar.mk(type),
+      Cocartesian => %{
+        left: &left(&1, type),
+        right: &right(&1, type),
+      },
     }
+    Map.merge(profunctor, cocartesian)
   end
 
-  def left(up_star(unUpStar), applicative) do
-    functor = Applicative.superclass(applicative)
-    pure = &Applicative.pure(&1, applicative)
+  def left(up_star(unUpStar), type) do
+    pure = &Applicative.pure(&1, type)
     left = &Either.left(&1)
     right = &Either.right(&1)
-    l_ = &Functor.map(left, &1, functor)
+    l_ = &Functor.map(left, &1, type)
     on_left = &compose(l_, unUpStar, &1)
     on_right = &compose(pure, right, &1)
     up_star(&Either.either(on_left, on_right, &1))
   end
 
-  def right(up_star(unUpStar), applicative) do
-    functor = Applicative.superclass(applicative)
-    on_left = &Applicative.pure(Either.left(&1), applicative)
-    on_right = fn x -> Functor.map(&Either.right(&1), unUpStar.(x), functor) end
+  def right(up_star(unUpStar), type) do
+    on_left = &Applicative.pure(Either.left(&1), type)
+    on_right = fn x -> Functor.map(&Either.right(&1), unUpStar.(x), type) end
     up_star(&Either.either(on_left, on_right, &1))
   end
 
@@ -99,15 +103,19 @@ defmodule Monoidal.UpStar do
 
   require Applicative
 
-  def mk(applicative) do
-    %{
-      superclass: fn -> Profunctor.UpStar end,
-      empty: fn -> empty(applicative) end,
-      par: &par(&1, &2, applicative),
+  def mk(type) do
+    profunctor = Profunctor.UpStar.mk(type)
+    monoidal = %{
+      Profunctor => Profunctor.UpStar.mk(type),
+      Monoidal => %{
+        empty: fn -> empty(type) end,
+        par: &par(&1, &2, type),
+      },
     }
+    Map.merge(profunctor, monoidal)
   end
 
-  def empty(applicative), do: up_star(&Applicative.pure(&1, applicative))
+  def empty(type), do: up_star(&Applicative.pure(&1, type))
 
-  def par(h, k, applicative), do: up_star(&Bag.pair(h.unUpStar, k.unUpStar, &1, applicative))
+  def par(h, k, type), do: up_star(&Bag.pair(h.unUpStar, k.unUpStar, &1, type))
 end

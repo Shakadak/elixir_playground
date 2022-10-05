@@ -41,19 +41,17 @@ defmodule Lens do
   require Profunctor
   require Cartesian
 
-  def lensC2P(lens(v, u), cartesian) do
-    profunctor = Cartesian.superclass(cartesian)
+  def lensC2P(lens(v, u), type) do
     id = &Function.identity/1
     f = &fork(v, id, &1)
-    &Profunctor.dimap(f, u, Cartesian.first(&1, cartesian), profunctor)
+    &Profunctor.dimap(f, u, Cartesian.first(&1, type), type)
   end
 
   def lensP2C(l), do: l.(lens(&Bag.id/1, &Bag.fst/1))
 
   def piP1(cartesian), do: lensC2P(pi1(), cartesian)
 
-  def piP1_(cartesian) do
-    profunctor = Cartesian.superclass(cartesian)
+  def piP1_(type) do
     fst = &Bag.fst/1
     snd = &Bag.snd/1
     id = &Bag.id/1
@@ -61,7 +59,7 @@ defmodule Lens do
     f = &fork(fst, id, &1)
     g = &cross(id, snd, &1)
 
-    &Profunctor.dimap(f, g, Cartesian.first(&1, cartesian), profunctor)
+    &Profunctor.dimap(f, g, Cartesian.first(&1, type), type)
   end
 
   def piP11(cartesian), do: &piP1(cartesian).(piP1(cartesian).(&1))
@@ -69,12 +67,12 @@ defmodule Lens do
 
   def view(l, s) do
     import Forget
-    forget(f) = l.(Cartesian.Forget).(forget(&Bag.id/1))
+    forget(f) = l.(Forget).(forget(&Bag.id/1))
     f.(s)
   end
 
   def set(l, b, s) do
-    l.(Cartesian.Function).(&Bag.const(b, &1)).(s)
+    l.(Function).(&Bag.const(b, &1)).(s)
   end
 end
 
@@ -91,10 +89,6 @@ end
 defmodule Cartesian.Lens do
   import Lens
   import Bag
-
-  require Cartesian
-
-  Cartesian.defaults(Profunctor.Lens)
 
   def first(lens(v, u)) do
     view = &v.(fst(&1))

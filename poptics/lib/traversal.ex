@@ -44,22 +44,6 @@ defmodule Curry do
   end
 end
 
-defmodule Either do
-  import Type
-
-  data either(a, b) = left(a) | right(b)
-
-  def either(f, _, left(x)), do: left(f.(x))
-  def either(_, g, right(y)), do: right(g.(y))
-
-  def plus(f, g) do
-    fn
-      left(x) -> left(f.(x))
-      right(y) -> right(g.(y))
-    end
-  end
-end
-
 defmodule FunList do
   import Type
   data fun_list(a, b, t) = done(t) | more(a, fun_list(a, b, (b -> t)))
@@ -94,7 +78,7 @@ defmodule Applicative.FunList do
 
   require Applicative
 
-  Applicative.defaults(Functor.FunList)
+  Applicative.defaults(FunList)
 
   def pure(t), do: done(t)
   def ap(done(f), l_), do: Functor.FunList.map(f, l_)
@@ -129,28 +113,26 @@ defmodule Traversal do
     traversal(fn x -> Tree.inorder(FunList, &FunList.single/1, x) end)
   end
 
-  def traverse(k, {cocartesian, monoidal}) do
+  def traverse(k, type) do
     require Cocartesian
     require Monoidal
     require Profunctor
-    profunctor = Cocartesian.superclass(cocartesian)
     f = &FunList.out/1
     g = fn {:Suspended, k} ->
       FunList.inn(k.())
     end
     suspension = {:Suspended, fn ->
-      Cocartesian.right(Monoidal.par(k, traverse(k, {cocartesian, monoidal}), monoidal), cocartesian)
+      Cocartesian.right(Monoidal.par(k, traverse(k, type), type), type)
     end}
-    Profunctor.dimap(f, g, suspension, profunctor)
+    Profunctor.dimap(f, g, suspension, type)
   end
 
-  def traversalC2P(traversal(h), {_cartesian, cocartesian, monoidal}) do
+  def traversalC2P(traversal(h), type) do
     require Cocartesian
     require Profunctor
-    profunctor = Cocartesian.superclass(cocartesian)
 
     fn k ->
-      Profunctor.dimap(h, &FunList.fuse/1, traverse(k, {cocartesian, monoidal}), profunctor) end
+      Profunctor.dimap(h, &FunList.fuse/1, traverse(k, type), type) end
   end
 
   def traversalP2C(l), do: l.(traversal(&FunList.single/1))

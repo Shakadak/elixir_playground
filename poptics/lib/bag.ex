@@ -15,4 +15,7 @@ defmodule Bag do
     require Applicative
     Applicative.liftA2(&{&1, &2}, h.(x), k.(y), applicative)
   end
+
+  def maybe(_, ab, {:Just, a}), do: ab.(a)
+  def maybe(b, _, :Nothing), do: b
 end

@@ -12,10 +12,6 @@ end
 defmodule Cartesian.Forget do
   import Forget
 
-  require Cartesian
-
-  Cartesian.defaults(Profunctor.Forget)
-
   def first(forget(z)), do: forget(&z.(Bag.fst(&1)))
   def second(forget(z)), do: forget(&z.(Bag.snd(&1)))
 end

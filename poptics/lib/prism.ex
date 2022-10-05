@@ -33,17 +33,51 @@ defmodule Prism do
     prism(match, build)
   end
 
-  def prismC2P(prism(m, b), cocartesian) do
+  def prismC2P(prism(m, b), type) do
     require Cocartesian
     require Profunctor
 
-    profunctor = Cocartesian.superclass(cocartesian)
     id = &Bag.id/1
     g = &either(id, b, &1)
-    &Profunctor.dimap(m, g, Either.right(&1), profunctor)
+    &Profunctor.dimap(m, g, Cocartesian.right(&1, type), type)
   end
 
   def prismP2C(l), do: l.(prism(&Either.right/1, &Bag.id/1))
+
+  def theP(type), do: prismC2P(the(), type)
+
+  def theP_(type) do
+    require Cocartesian
+    require Profunctor
+    require Either
+
+    id = &Bag.id/1
+    right = &Either.right/1
+    just = &{:Just, &1}
+    f = &Bag.maybe(Either.left(:Nothing), right, &1)
+    g = &either(id, just, &1)
+    &Profunctor.dimap(f, g, Cocartesian.right(&1, type), type)
+  end
+
+  def withPrism(p, f) do
+    import Market
+    require Either
+
+    case p.(Market).(market(&Bag.id/1, &Either.right/1)) do
+      market(g, h) -> f.(g, h)
+    end
+  end
+
+  def matching(p, s) do
+    withPrism(p, fn _, f -> f.(s) end)
+  end
+
+  def review(p, b) do
+    import Tagged
+    case p.(Tagged).(tagged(b)) do
+      tagged(x) -> x
+    end
+  end
 end
 
 defmodule Profunctor.Prism do
@@ -61,9 +95,6 @@ defmodule Cocartesian.Prism do
   import Prism
 
   require Either
-  require Cocartesian
-
-  Cocartesian.defaults(Cocartesian.Profunctor)
 
   def left (prism m, b) do
     id = &Bag.id/1

@@ -108,7 +108,7 @@ defmodule LensTest do
   test "πP1 view" do
     view = fn l, s ->
       import UpStar
-      dict = Cartesian.UpStar.mk(Functor.Const)
+      dict = Cartesian.UpStar.mk(Const)
       l.(dict).(up_star(&Bag.id/1)).unUpStar.(s)
     end
 
@@ -120,7 +120,7 @@ defmodule LensTest do
 
   test "πP1 update" do
     set = fn l, b, s ->
-      dict = Cartesian.Function
+      dict = Function
       l.(dict).(&Bag.const(b, &1)).(s)
     end
 
@@ -134,7 +134,7 @@ defmodule LensTest do
   test "πP11 view" do
     view = fn l, s ->
       import UpStar
-      dict = Cartesian.UpStar.mk(Functor.Const)
+      dict = Cartesian.UpStar.mk(Const)
       l.(dict).(up_star(&Bag.id/1)).unUpStar.(s)
     end
 
@@ -146,7 +146,7 @@ defmodule LensTest do
 
   test "πP11 update" do
     set = fn l, b, s ->
-      dict = Cartesian.Function
+      dict = Function
       l.(dict).(&Bag.const(b, &1)).(s)
     end
 

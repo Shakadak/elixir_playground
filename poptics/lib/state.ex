@@ -24,7 +24,7 @@ defmodule Applicative.State do
 
   require Applicative
 
-  Applicative.defaults(Functor.State)
+  Applicative.defaults(State)
 
   def pure(x), do: state(fn s -> {x, s} end)
 
