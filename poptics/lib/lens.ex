@@ -47,7 +47,7 @@ defmodule Lens do
     &Profunctor.dimap(f, u, Cartesian.first(&1, type), type)
   end
 
-  def lensP2C(l), do: l.(lens(&Bag.id/1, &Bag.fst/1))
+  def lensP2C(l), do: l.(Lens).(lens(&Bag.id/1, &Bag.fst/1))
 
   def piP1(cartesian), do: lensC2P(pi1(), cartesian)
 

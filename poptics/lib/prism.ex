@@ -42,7 +42,7 @@ defmodule Prism do
     &Profunctor.dimap(m, g, Cocartesian.right(&1, type), type)
   end
 
-  def prismP2C(l), do: l.(prism(&Either.right/1, &Bag.id/1))
+  def prismP2C(l), do: l.(Prism).(prism(&Either.right/1, &Bag.id/1))
 
   def theP(type), do: prismC2P(the(), type)
 

@@ -14,7 +14,7 @@ defmodule Adapter do
 
   def adapterC2P(adapter(o, i), profunctor), do: &Profunctor.dimap(o, i, &1, profunctor)
 
-  def adapterP2C(l), do: l.(adapter(&Function.identity/1, &Function.identity/1))
+  def adapterP2C(l), do: l.(Adapter).(adapter(&Function.identity/1, &Function.identity/1))
 end
 
 defmodule Profunctor.Adapter do

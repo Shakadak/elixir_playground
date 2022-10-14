@@ -103,6 +103,38 @@ defmodule LensTest do
     assert t == {{0, 3}, 2}
   end
 
+  # profunctor to concrete
+
+  test "π1 p2c view" do
+    s = {1, 2}
+    a = Lens.lensP2C(&Lens.piP1_/1).view.(s)
+
+    assert a == 1
+  end
+
+  test "π1 p2c update" do
+    s = {1, 2}
+    b = 0
+    t = Lens.lensP2C(&Lens.piP1_/1).update.({b, s})
+
+    assert t == {0, 2}
+  end
+
+  test "π11' p2c view" do
+    s = {{1, 3}, 2}
+    a = Lens.lensP2C(&Lens.piP11_/1).view.(s)
+
+    assert a == 1
+  end
+
+  test "π11' p2c update" do
+    s = {{1, 3}, 2}
+    b = 0
+    t = Lens.lensP2C(&Lens.piP11_/1).update.({b, s})
+
+    assert t == {{0, 3}, 2}
+  end
+
   # profunctor
 
   test "πP1 view" do
