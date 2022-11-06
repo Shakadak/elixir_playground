@@ -1,0 +1,3 @@
+%{
+  "circe": {:hex, :circe, "0.2.0", "21f6b4abb25a2428c43e4069815b514c96384b763ff7ead3bc851a2834eeef1d", [:mix], [], "hexpm", "21d854eeaf2a5f829c676cf2bfc954593d96977598171e1e4ad9fc868dbe1baa"},
+}
