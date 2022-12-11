@@ -131,6 +131,12 @@ defmodule TypedAttempt do
       x when is_float(x) -> {:float, env}
       x when is_atom(x) -> {:atom, env}
       x when is_binary(x) -> {:binary, env}
+      x when is_boolean(x) -> {:boolean, env}
+
+      {_name, _meta, context} = var when is_atom(context) ->
+        var = Macro.update_meta(var, &Keyword.delete(&1, :line))
+        var_type = Map.fetch!(env.vars, var)
+        {var_type, env}
 
       {l, r} ->
         {l_type, env} = unify_type!(l, env)
@@ -147,16 +153,8 @@ defmodule TypedAttempt do
         {param_types, return_type} = Map.fetch!(env.functions, {function, length(params)})
 
         _ = Enum.zip_with(params, param_types, fn expression, expected_type ->
-          {expression_type, _env} = case expression do
-            {_name, _meta, context} = var when is_atom(context) ->
-              var = Macro.update_meta(var, &Keyword.delete(&1, :line))
-              var_type = Map.fetch!(env.vars, var)
-              {var_type, env}
-
-            expression -> unify_type!(expression, env)
-          end
-          case expression_type do
-            ^expected_type -> :ok
+          case unify_type!(expression, env) do
+            {^expected_type, _env} -> :ok
           end
         end)
 

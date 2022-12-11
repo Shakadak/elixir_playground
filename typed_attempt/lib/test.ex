@@ -27,7 +27,7 @@ defmodule Test do
   end
 
   typ one :: (() -> int())
-  det one, do: {1, 1}
+  det one, do: 1
 
   typ sum :: (list(int()) -> int())
 end
