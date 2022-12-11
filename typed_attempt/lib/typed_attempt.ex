@@ -67,38 +67,49 @@ defmodule TypedAttempt do
     end
 
     ~m/#{function}(#{...params})/ = x
+    params = case params do
+      xs when is_list(xs) -> xs
+      nil -> []
+    end
     arity = length(params)
     module = __CALLER__.module
     module_types = Module.get_attribute(module, :types, %{})
     type = Map.fetch!(module_types, {function, arity})
-    {param_types, _return_type} = type
+    {param_types, return_type} = type
     params = Enum.map(params, fn {_name, _meta, context} = ast when is_atom(context) ->
       Macro.update_meta(ast, &Keyword.delete(&1, :line))
     end)
     typing_env =
-      Enum.zip(params, param_types)
-      |> Map.new()
+      %{
+        vars: Map.new(Enum.zip(params, param_types)),
+        functions: module_types,
+      }
+      #|> IO.inspect(label: "initial typing_env")
 
     body = case y do
-      [do: body] when is_list(body) -> body
-      [do: body] when is_tuple(body) -> [body]
+      [do: {:__block__, _meta, body}] when is_list(body) -> body
+      [do: body] -> [body]
     end
 
-    _typing_env = Enum.reduce(body, typing_env, fn expression, typing_env ->
-      case expression do
-        ~m/#{function}(#{...params})/ ->
-          {param_types, _return_type} = Map.fetch!(module_types, {function, length(params)})
-          Enum.zip_with(params, param_types, fn expression, expected_type ->
-            expression = Macro.update_meta(expression, &Keyword.delete(&1, :line))
-            case Map.fetch!(typing_env, expression) do
-              ^expected_type -> :ok
-            end
-          end)
-      end
-      typing_env
+    _ = Enum.reduce(body, {:void, typing_env}, fn expression, {_, typing_env} ->
+      {_expression_type, _typing_env} = unify_type!(expression, typing_env)
     end)
+    |> case do
+      {^return_type, _typing_env} -> :ok
+      {unified_type, _typing_env} ->
+        return_type_string = Macro.to_string(to_ast(return_type))
+        unified_type_string = Macro.to_string(to_ast(unified_type))
+        msg =
+          """
+          -- Type mismatch
+          The function #{function}/#{arity} expected a type #{return_type_string} for its last expression, but instead got:
+              #{Macro.to_string(:lists.last(body))} :: #{unified_type_string}
+          """
+        raise(msg)
+    end
 
     z = [x, y]
+        #|> IO.inspect(label: '[x, y]')
     quote do
       def unquote_splicing(z)
     end
@@ -107,6 +118,49 @@ defmodule TypedAttempt do
           IO.puts(Macro.to_string(x))
         end
         ; x
+    end
+  end
+
+  def comparable_var(var) do
+    Macro.update_meta(var, &Keyword.delete(&1, :line))
+  end
+
+  def unify_type!(expression, env) do
+    case expression do
+      x when is_integer(x) -> {:int, env}
+      x when is_float(x) -> {:float, env}
+      x when is_atom(x) -> {:atom, env}
+      x when is_binary(x) -> {:binary, env}
+
+      {l, r} ->
+        {l_type, env} = unify_type!(l, env)
+        {r_type, env} = unify_type!(r, env)
+        {{:tuple, [l_type, r_type]}, env}
+
+      ~m/#{{_, _, c} = var} = #{expression}/ when is_atom(c) ->
+        var = comparable_var(var)
+        {var_type, env} = unify_type!(expression, env)
+        env = put_in(env, [:vars, var], var_type)
+        {var_type, env}
+
+      ~m/#{function}(#{...params})/ ->
+        {param_types, return_type} = Map.fetch!(env.functions, {function, length(params)})
+
+        _ = Enum.zip_with(params, param_types, fn expression, expected_type ->
+          {expression_type, _env} = case expression do
+            {_name, _meta, context} = var when is_atom(context) ->
+              var = Macro.update_meta(var, &Keyword.delete(&1, :line))
+              var_type = Map.fetch!(env.vars, var)
+              {var_type, env}
+
+            expression -> unify_type!(expression, env)
+          end
+          case expression_type do
+            ^expected_type -> :ok
+          end
+        end)
+
+        {return_type, env}
     end
   end
 
