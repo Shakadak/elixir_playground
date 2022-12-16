@@ -59,6 +59,42 @@ defmodule TypedAttempt do
 
   # TODO Handle macro hygiene: a ≠ a
 
+  def zip_param(param, type) do
+    case {param, type} do
+      {[], {:list, _}} -> []
+      {x, :int} when is_integer(x) -> []
+      {x, :atom} when is_atom(x) -> []
+      {x, :binary} when is_binary(x) -> []
+      {{_name, _meta, context} = var, type} when is_atom(context) ->
+        var = Macro.update_meta(var, &Keyword.delete(&1, :line))
+        [{var, type}]
+
+      {~m/[#{x} | #{xs}]/, {:list, [sub_type]} = type} ->
+        zip_param(x, sub_type) ++ zip_param(xs, type)
+
+      {~m/#{l} = #{r}/, type} ->
+        zip_param(l, type) ++ zip_param(r, type)
+
+      {ast, expected_type} ->
+        unified_type = unify_type!(ast, %{})
+        unified_type_string = Macro.to_string(to_ast(unified_type))
+        expected_type_string = Macro.to_string(to_ast(expected_type))
+        msg =
+          """
+          -- Type mismatch
+          The pattern #{Macro.to_string(ast)} expected a type #{expected_type_string} as its expression, but instead got:
+              #{Macro.to_string(ast)} :: #{unified_type_string}
+          """
+        raise(msg)
+    end
+  end
+
+  def zip_params(params, param_types) do
+    Enum.zip_with(params, param_types, &zip_param/2)
+    |> Enum.concat()
+    |> Map.new()
+  end
+
   defmacro det(x, y) do
     debug? = false
     if debug? do
@@ -76,12 +112,11 @@ defmodule TypedAttempt do
     module_types = Module.get_attribute(module, :types, %{})
     type = Map.fetch!(module_types, {function, arity})
     {param_types, return_type} = type
-    params = Enum.map(params, fn {_name, _meta, context} = ast when is_atom(context) ->
-      Macro.update_meta(ast, &Keyword.delete(&1, :line))
-    end)
+    vars = zip_params(params, param_types)
+           #|> IO.inspect(label: "vars")
     typing_env =
       %{
-        vars: Map.new(Enum.zip(params, param_types)),
+        vars: vars,
         functions: module_types,
       }
       #|> IO.inspect(label: "initial typing_env")
@@ -97,12 +132,12 @@ defmodule TypedAttempt do
     |> case do
       {^return_type, _typing_env} -> :ok
       {unified_type, _typing_env} ->
-        return_type_string = Macro.to_string(to_ast(return_type))
+        expected_type_string = Macro.to_string(to_ast(return_type))
         unified_type_string = Macro.to_string(to_ast(unified_type))
         msg =
           """
           -- Type mismatch
-          The function #{function}/#{arity} expected a type #{return_type_string} for its last expression, but instead got:
+          The function #{function}/#{arity} expected a type #{expected_type_string} for its last expression, but instead got:
               #{Macro.to_string(:lists.last(body))} :: #{unified_type_string}
           """
         raise(msg)
@@ -133,9 +168,12 @@ defmodule TypedAttempt do
       x when is_binary(x) -> {:binary, env}
       x when is_boolean(x) -> {:boolean, env}
 
-      {_name, _meta, context} = var when is_atom(context) ->
-        var = Macro.update_meta(var, &Keyword.delete(&1, :line))
-        var_type = Map.fetch!(env.vars, var)
+      {_name, meta, context} = var when is_atom(context) ->
+        var2 = Macro.update_meta(var, &Keyword.delete(&1, :line))
+        var_type = case Map.fetch(env.vars, var2) do
+          {:ok, type} -> type
+          :error -> raise("Var: #{Macro.to_string(var)} (line #{Keyword.fetch!(meta, :line)}) has no previous binding.")
+        end
         {var_type, env}
 
       {l, r} ->
@@ -150,11 +188,22 @@ defmodule TypedAttempt do
         {var_type, env}
 
       ~m/#{function}(#{...params})/ ->
-        {param_types, return_type} = Map.fetch!(env.functions, {function, length(params)})
+        arity = length(params)
+        {param_types, return_type} = Map.fetch!(env.functions, {function, arity})
 
         _ = Enum.zip_with(params, param_types, fn expression, expected_type ->
           case unify_type!(expression, env) do
             {^expected_type, _env} -> :ok
+            {unified_type, _typing_env} ->
+              expected_type_string = Macro.to_string(to_ast(return_type))
+              unified_type_string = Macro.to_string(to_ast(unified_type))
+              msg =
+                """
+                -- Type mismatch
+                The function #{function}/#{arity} expected a type #{expected_type_string} for its last expression, but instead got:
+                    #{Macro.to_string(expression)} :: #{unified_type_string}
+                """
+              raise(msg)
           end
         end)
 

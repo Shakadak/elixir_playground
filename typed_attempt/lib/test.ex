@@ -30,4 +30,6 @@ defmodule Test do
   det one, do: 1
 
   typ sum :: (list(int()) -> int())
+  det sum([]), do: 0
+  det sum([x | xs]), do: x + sum(xs)
 end
