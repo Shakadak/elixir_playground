@@ -1,7 +1,8 @@
 defmodule TypedAttempt do
   import Circe
-
   import Builder
+  alias DataTypes, as: DT
+  require DT
 
   def fetch_types(module) do
     case Keyword.fetch(module.__info__(:attributes), :types) do
@@ -69,10 +70,13 @@ defmodule TypedAttempt do
     arity = length(params)
     module = __CALLER__.module
     module_types = Module.get_attribute(module, :types, %{})
-    type = Map.fetch!(module_types, {function, arity})
-    Builder.fun(param_types, return_type) = type
-    param_types = Enum.map(param_types, &map_type_variables(&1, fn name -> Builder.rigid_variable(name) end))
-    return_type = map_type_variables(return_type, fn name -> Builder.rigid_variable(name) end)
+    #DT.fun(param_types, return_type) = Map.fetch!(module_types, {function, arity})
+    #param_types = Enum.map(param_types, &map_type_variables(&1, fn name -> DT.rigid_variable(name) end))
+    #return_type = map_type_variables(return_type, fn name -> DT.rigid_variable(name) end)
+    DT.fun(param_types, return_type) =
+      Map.fetch!(module_types, {function, arity})
+      |> map_type_variables(fn name -> DT.rigid_variable(name) end)
+
     vars =
       zip_params(params, param_types)
       #|> IO.inspect(label: "vars")
@@ -126,14 +130,14 @@ defmodule TypedAttempt do
 
   defmacro typ(~m/#{function} :: #{type}/) do
     function = extract_function_name(function)
-    type = Builder.fun(parameters, _) = ast_to_type(type)
+    type = DT.fun(parameters, _) = ast_to_type(type)
     arity = length(parameters)
     _ = save_type({function, arity}, type, __CALLER__.module, __CALLER__)
     nil
   end
 
   defmacro foreign(~m/import #{module}.#{function} :: (#{type})/) do
-    type = Builder.fun(parameters, _) = ast_to_type(type)
+    type = DT.fun(parameters, _) = ast_to_type(type)
     arity = length(parameters)
     _ = save_type({function, arity}, type, __CALLER__.module, __CALLER__)
 
