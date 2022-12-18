@@ -37,7 +37,7 @@ defmodule Test do
   det len([]), do: 0
   det len([_ | xs]), do: 1 + len(xs)
 
-  typ map :: ((a -> b), list(a) -> list(b))
+  typ map :: ((src -> tgt), list(src) -> list(tgt))
   det map(_, []), do: []
   det map(f, [x | xs]), do: [f.(x) | map(f, xs)]
 

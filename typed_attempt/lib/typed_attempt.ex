@@ -70,9 +70,9 @@ defmodule TypedAttempt do
     module = __CALLER__.module
     module_types = Module.get_attribute(module, :types, %{})
     type = Map.fetch!(module_types, {function, arity})
-    {param_types, return_type} = type
-    param_types = Enum.map(param_types, &map_type_variables(&1, fn name -> {:"$rigid_variable", name} end))
-    return_type = map_type_variables(return_type, fn name -> {:"$rigid_variable", name} end)
+    Builder.fun(param_types, return_type) = type
+    param_types = Enum.map(param_types, &map_type_variables(&1, fn name -> Builder.rigid_variable(name) end))
+    return_type = map_type_variables(return_type, fn name -> Builder.rigid_variable(name) end)
     vars =
       zip_params(params, param_types)
       #|> IO.inspect(label: "vars")
@@ -93,6 +93,7 @@ defmodule TypedAttempt do
         {_expression_type, _typing_env} = unify_type!(expression, typing_env)
       end)
 
+    #_ = IO.inspect(last_expression_type, label: "last expression type")
     unified_type = merge_unknowns(return_type, last_expression_type)
     _ = case unified_type do
       ^return_type -> :ok
@@ -125,16 +126,16 @@ defmodule TypedAttempt do
 
   defmacro typ(~m/#{function} :: #{type}/) do
     function = extract_function_name(function)
-    type = {parameters, _} = ast_to_type(type)
+    type = Builder.fun(parameters, _) = ast_to_type(type)
     arity = length(parameters)
-    _ = save_type({function, arity}, type, __CALLER__.module)
+    _ = save_type({function, arity}, type, __CALLER__.module, __CALLER__)
     nil
   end
 
   defmacro foreign(~m/import #{module}.#{function} :: (#{type})/) do
-    type = {parameters, _} = ast_to_type(type)
+    type = Builder.fun(parameters, _) = ast_to_type(type)
     arity = length(parameters)
-    _ = save_type({function, arity}, type, __CALLER__.module)
+    _ = save_type({function, arity}, type, __CALLER__.module, __CALLER__)
 
     args = Macro.generate_arguments(arity, __CALLER__.module)
     quote do
