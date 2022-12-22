@@ -1,6 +1,5 @@
 defmodule TypedAttempt do
   import Circe
-  import Builder
   alias DataTypes, as: DT
   require DT
 
@@ -26,7 +25,7 @@ defmodule TypedAttempt do
   def print_types!(module) do
     fetch_types!(module)
     |> Enum.map_join("\n", fn {{function, _arity}, type} ->
-      "#{function} : #{type_to_string(type)}"
+      "#{function} : #{Builder.type_to_string(type)}"
     end)
     |> IO.puts()
   end
@@ -56,30 +55,40 @@ defmodule TypedAttempt do
   # TODO Handle macro hygiene: a ≠ a
 
   defmacro det(x, y) do
-    debug? = false
+    debug? = true
     if debug? do
       IO.inspect(x)
       IO.inspect(y)
     end
 
-    ~m/#{function}(#{...params})/ = x
+    {function, params, guards} = case x do
+      ~m/#{function}(#{...params}) when #{guards}/ -> {function, params, Builder.unnest_whens(guards)}
+      ~m/#{function}(#{...params})/ -> {function, params, []}
+    end
+    _ = IO.inspect(guards, label: "guards")
+
     params = case params do
       xs when is_list(xs) -> xs
       nil -> []
     end
+
     arity = length(params)
+
     module = __CALLER__.module
     module_types = Module.get_attribute(module, :types, %{})
+
     #DT.fun(param_types, return_type) = Map.fetch!(module_types, {function, arity})
     #param_types = Enum.map(param_types, &map_type_variables(&1, fn name -> DT.rigid_variable(name) end))
     #return_type = map_type_variables(return_type, fn name -> DT.rigid_variable(name) end)
+
     DT.fun(param_types, return_type) =
       Map.fetch!(module_types, {function, arity})
-      |> map_type_variables(fn name -> DT.rigid_variable(name) end)
+      |> Builder.map_type_variables(fn name -> DT.rigid_variable(name) end)
 
     vars =
-      zip_params(params, param_types)
+      Builder.zip_params(params, param_types)
       #|> IO.inspect(label: "vars")
+
     typing_env =
       %{
         vars: vars,
@@ -94,18 +103,18 @@ defmodule TypedAttempt do
 
     {last_expression_type, _env} =
       Enum.reduce(body, {:void, typing_env}, fn expression, {_, typing_env} ->
-        {_expression_type, _typing_env} = unify_type!(expression, typing_env)
+        {_expression_type, _typing_env} = Builder.unify_type!(expression, typing_env)
       end)
 
     #_ = IO.inspect(last_expression_type, label: "last expression type")
-    unified_type = merge_unknowns(return_type, last_expression_type)
-    _ = case unified_type do
-      ^return_type -> :ok
-      unified_type ->
+    unified_type = Builder.merge_unknowns(return_type, last_expression_type)
+    _ = case Builder.match_type(return_type, unified_type, %{}) do
+      {:ok, _env} -> :ok
+      :error ->
         IO.inspect(unified_type, label: "type mismatch / unified type")
         IO.inspect(return_type, label: "type mismatch / return type")
-        expected_type_string = Macro.to_string(type_to_ast(return_type))
-        unified_type_string = Macro.to_string(type_to_ast(unified_type))
+        expected_type_string = Builder.type_to_string(return_type)
+        unified_type_string = Builder.type_to_string(unified_type)
         msg =
           """
           -- Type mismatch --
@@ -115,10 +124,8 @@ defmodule TypedAttempt do
         raise(msg)
     end
 
-    z = [x, y]
-        #|> IO.inspect(label: '[x, y]')
     quote do
-      def unquote_splicing(z)
+      def unquote_splicing([x, y])
     end
     |> case do x ->
         if debug? do
@@ -129,17 +136,17 @@ defmodule TypedAttempt do
   end
 
   defmacro typ(~m/#{function} :: #{type}/) do
-    function = extract_function_name(function)
-    type = DT.fun(parameters, _) = ast_to_type(type)
+    function = Builder.extract_function_name(function)
+    type = DT.fun(parameters, _) = Builder.from_ast(type)
     arity = length(parameters)
-    _ = save_type({function, arity}, type, __CALLER__.module, __CALLER__)
+    _ = Builder.save_type({function, arity}, type, __CALLER__.module, __CALLER__)
     nil
   end
 
   defmacro foreign(~m/import #{module}.#{function} :: (#{type})/) do
-    type = DT.fun(parameters, _) = ast_to_type(type)
+    type = DT.fun(parameters, _) = Builder.from_ast(type)
     arity = length(parameters)
-    _ = save_type({function, arity}, type, __CALLER__.module, __CALLER__)
+    _ = Builder.save_type({function, arity}, type, __CALLER__.module, __CALLER__)
 
     args = Macro.generate_arguments(arity, __CALLER__.module)
     quote do

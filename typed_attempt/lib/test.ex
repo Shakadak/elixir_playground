@@ -49,4 +49,16 @@ defmodule Test do
 
   typ const :: (a, b -> a)
   det const(x, _), do: x
+
+  #typ len_b :: ((list(a) | binary()) -> int())
+  #det len_b(xs) when is_list(xs), do: len(xs)
+  #det len_b(bin) when is_binary(xs), do: byte_size(xs)
+
+  typ banana :: (binary() -> int())
+  det banana(x)
+  when x == 1
+  when x == 2
+  when x == 3 do
+    0
+  end
 end

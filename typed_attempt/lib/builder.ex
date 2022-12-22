@@ -18,6 +18,9 @@ defmodule Builder do
     raise(msg)
   end
 
+  def unnest_whens(~m/#{x} when #{whens}/), do: [x | unnest_whens(whens)]
+  def unnest_whens(x), do: [x]
+
   def zip_param(param, type) do
     case {param, type} do
       {[], DT.hkt(:list, _)} -> []
@@ -192,8 +195,8 @@ defmodule Builder do
 
         case match_args(param_types, unified_param_types, %{}) do
           :error ->
-            expected_type = Macro.to_string(Enum.map(param_types, &type_to_ast/1))
-            unified_type = Macro.to_string(Enum.map(unified_param_types, &type_to_ast/1))
+            expected_type = Enum.join(Enum.map(param_types, &type_to_string/1), ", ")
+            unified_type = Enum.join(Enum.map(unified_param_types, &type_to_string/1), ", ")
             raise("Could not match expected type: #{expected_type} with actual type: #{unified_type}")
 
           {:ok, vars_env} ->
@@ -231,12 +234,7 @@ defmodule Builder do
   def from_ast({name, _meta, ctxt}) when is_atom(ctxt), do: DT.variable(name)
   def from_ast({name, _meta, []}), do: DT.type(name)
   def from_ast({name, _meta, [_|_] = args}), do: DT.hkt(name, Enum.map(args, &from_ast/1))
-  def from_ast(~m/(#{_} -> #{_})/ = fun) do
-    DT.fun(params, return) = ast_to_type(fun)
-    DT.fun(params, return)
-  end
-
-  def ast_to_type(~m/(#{...parameters} -> #{return})/) do
+  def from_ast(~m/(#{...parameters} -> #{return})/) do
     parameters = Enum.map(parameters, &from_ast/1)
     return = from_ast(return)
     DT.fun(parameters, return)
