@@ -55,6 +55,11 @@ defmodule TypedAttempt do
   # TODO Handle macro hygiene: a ≠ a
 
   defmacro det(x, y) do
+    do_det(x, y, __CALLER__)
+  end
+
+  @doc false
+  def do_det(x, y, caller) do
     debug? = true
     if debug? do
       IO.inspect(x)
@@ -74,7 +79,7 @@ defmodule TypedAttempt do
 
     arity = length(params)
 
-    module = __CALLER__.module
+    module = caller.module
     module_types = Module.get_attribute(module, :types, %{})
 
     #DT.fun(param_types, return_type) = Map.fetch!(module_types, {function, arity})
@@ -86,7 +91,7 @@ defmodule TypedAttempt do
       |> Builder.map_type_variables(fn name -> DT.rigid_variable(name) end)
 
     vars =
-      Builder.zip_params(params, param_types)
+      Builder.zip_params(params, param_types, caller)
       #|> IO.inspect(label: "vars")
 
     typing_env =
@@ -103,7 +108,7 @@ defmodule TypedAttempt do
 
     {last_expression_type, _env} =
       Enum.reduce(body, {:void, typing_env}, fn expression, {_, typing_env} ->
-        {_expression_type, _typing_env} = Builder.unify_type!(expression, typing_env)
+        {_expression_type, _typing_env} = Builder.unify_type!(expression, typing_env, caller)
       end)
 
     #_ = IO.inspect(last_expression_type, label: "last expression type")

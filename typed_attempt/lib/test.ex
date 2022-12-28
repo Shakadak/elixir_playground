@@ -50,9 +50,9 @@ defmodule Test do
   typ const :: (a, b -> a)
   det const(x, _), do: x
 
-  #typ len_b :: ((list(a) | binary()) -> int())
-  #det len_b(xs) when is_list(xs), do: len(xs)
-  #det len_b(bin) when is_binary(xs), do: byte_size(xs)
+  typ len_b :: ((list(a) | binary()) -> int())
+  det len_b(xs) when is_list(xs), do: len(xs)
+  det len_b(bin) when is_binary(xs), do: byte_size(xs)
 
   typ banana :: (binary() -> int())
   det banana(x)
@@ -61,4 +61,13 @@ defmodule Test do
   when x == 3 do
     0
   end
+
+  # typ banana :: forall(f, a, b), where(functor(f), num(a), num(b)), =: ((a -> b) -> (f(a) -> f(b)))
+  # typ banana, V: [f, a, b], =: functor(f), =: num(a), =: num(b), -: ((a -> b) -> (f(a) -> f(b)))
+  # typ banana, V: [f, a, b], C: [functor(f), num(a), num(b)], -: ((a -> b) -> (f(a) -> f(b)))
+  # typ banana, V: [f, a, b], C: [functor(f)], -: ((a -> b) -> (f(a) -> f(b)))
+  # typ banana, V: [f, a, b], -: ((a -> b) -> (f(a) -> f(b)))
+  # typ banana, V: [f, a, b], C: [functor(f), num(a), num(b)], -: ((a -> b), f(a) -> f(b))
+  # typ list_map, V: [a, b], -: ((a -> b), list(a) -> list(b))
+  # typ banana :: ~T/forall f a b. Functor f => (a -> b) -> f a -> f b/
 end

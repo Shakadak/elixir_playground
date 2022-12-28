@@ -21,7 +21,7 @@ defmodule Builder do
   def unnest_whens(~m/#{x} when #{whens}/), do: [x | unnest_whens(whens)]
   def unnest_whens(x), do: [x]
 
-  def zip_param(param, type) do
+  def zip_param(param, type, caller) do
     case {param, type} do
       {[], DT.hkt(:list, _)} -> []
       {x, DT.type(:int)} when is_integer(x) -> []
@@ -32,19 +32,19 @@ defmodule Builder do
         [{var, type}]
 
       {~m/[#{x} | #{xs}]/, DT.hkt(:list, [sub_type]) = type} ->
-        zip_param(x, sub_type) ++ zip_param(xs, type)
+        zip_param(x, sub_type, caller) ++ zip_param(xs, type, caller)
 
       {~m/#{l} = #{r}/, type} ->
-        zip_param(l, type) ++ zip_param(r, type)
+        zip_param(l, type, caller) ++ zip_param(r, type, caller)
 
       {ast, expected_type} ->
-        unified_type = unify_type!(ast, %{})
+        unified_type = unify_type!(ast, %{}, caller)
         pattern_type_mismatch(ast, unified_type, expected_type)
     end
   end
 
-  def zip_params(params, param_types) do
-    Enum.zip_with(params, param_types, &zip_param/2)
+  def zip_params(params, param_types, caller) do
+    Enum.zip_with(params, param_types, &zip_param(&1, &2, caller))
     |> Enum.concat()
     |> Map.new()
   end
@@ -108,7 +108,7 @@ defmodule Builder do
     end
   end
 
-  def unify_type!(expression, env) do
+  def unify_type!(expression, env, caller) do
     case expression do
       x when is_integer(x) -> {DT.type(:int), env}
       x when is_float(x) -> {DT.type(:float), env}
@@ -120,28 +120,31 @@ defmodule Builder do
         var2 = Macro.update_meta(var, &Keyword.delete(&1, :line))
         var_type = case Map.fetch(env.vars, var2) do
           {:ok, type} -> type
-          :error -> raise("Var: #{Macro.to_string(var)} (line #{Keyword.fetch!(meta, :line)}) has no previous binding.")
+          :error -> raise(CompileError,
+              file: caller.file,
+              line: Keyword.get(meta, :line, caller.line),
+              description: "Var: #{Macro.to_string(var)} (line #{Keyword.fetch!(meta, :line)}) has no previous binding.")
         end
         {var_type, env}
 
       {l, r} ->
-        {l_type, env} = unify_type!(l, env)
-        {r_type, env} = unify_type!(r, env)
+        {l_type, env} = unify_type!(l, env, caller)
+        {r_type, env} = unify_type!(r, env, caller)
         {DT.hkt(:tuple, [l_type, r_type]), env}
 
       ~m/#{{_, _, c} = var} = #{expression}/ when is_atom(c) ->
         var = comparable_var(var)
-        {var_type, env} = unify_type!(expression, env)
+        {var_type, env} = unify_type!(expression, env, caller)
         env = put_in(env, [:vars, var], var_type)
         {var_type, env}
 
       [] -> {DT.hkt(:list, [DT.unknown()]), env}
 
       ~m/[#{x} | #{xs}]/ ->
-        {head_type, env} = unify_type!(x, env)
+        {head_type, env} = unify_type!(x, env, caller)
         expected_type = DT.hkt(:list, [head_type])
 
-        {unified_type, env} = _ret = unify_type!(xs, env)
+        {unified_type, env} = _ret = unify_type!(xs, env, caller)
 
         case match_type(expected_type, unified_type, %{}) do
           :error ->
@@ -166,7 +169,7 @@ defmodule Builder do
         DT.fun(param_types, return_type) = Map.fetch!(env.vars, var2)
 
         {unified_param_types, _envs} =
-          Enum.map(params, &unify_type!(&1, env))
+          Enum.map(params, &unify_type!(&1, env, caller))
           |> Enum.unzip()
         case match_args(param_types, unified_param_types, %{}) do
           :error ->
@@ -185,19 +188,22 @@ defmodule Builder do
             {return_type, env}
         end
 
-      ~m/#{function}(#{...params})/ ->
+      ~m/#{function}(#{...params})/ = {_, meta, _} ->
         arity = length(params)
         DT.fun(param_types, return_type) = Map.fetch!(env.functions, {function, arity})
 
         {unified_param_types, _envs} =
-          Enum.map(params, &unify_type!(&1, env))
+          Enum.map(params, &unify_type!(&1, env, caller))
           |> Enum.unzip()
 
         case match_args(param_types, unified_param_types, %{}) do
           :error ->
             expected_type = Enum.join(Enum.map(param_types, &type_to_string/1), ", ")
             unified_type = Enum.join(Enum.map(unified_param_types, &type_to_string/1), ", ")
-            raise("Could not match expected type: #{expected_type} with actual type: #{unified_type}")
+            raise(CompileError,
+              file: caller.file,
+              line: Keyword.get(meta, :line, caller.line),
+              description: "Could not match expected type: #{expected_type} with actual type: #{unified_type}")
 
           {:ok, vars_env} ->
             return_type = map_type_variables(return_type, fn var ->
@@ -216,7 +222,10 @@ defmodule Builder do
     types = Module.get_attribute(module, :types, %{})
     types = Map.update(types, fa, type, fn type1 ->
       {function, arity} = fa
-      raise(CompileError, file: env.file, line: env.line, description: "Type for #{inspect(module)}.#{function}/#{inspect(arity)} already exist : #{type_to_string(type1)} (would be replaced with : #{type_to_string(type)}")
+      raise(CompileError,
+        file: env.file,
+        line: env.line,
+        description: "Type for #{inspect(module)}.#{function}/#{inspect(arity)} already exist : #{type_to_string(type1)} (would be replaced with : #{type_to_string(type)}")
     end)
     _ = Module.put_attribute(module, :types, types)
   end
