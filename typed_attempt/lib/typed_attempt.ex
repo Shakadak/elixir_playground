@@ -140,17 +140,34 @@ defmodule TypedAttempt do
     end
   end
 
-  defmacro typ(~m/#{function} :: #{type}/) do
+  #defmacro typ(~m/#{function} :: #{type}/) do
+  #  function = Builder.extract_function_name(function)
+  #  type = DT.fun(parameters, _) = Builder.from_ast(type)
+  #  arity = length(parameters)
+  #  _ = Builder.save_type({function, arity}, type, __CALLER__.module, __CALLER__)
+  #  nil
+  #end
+  defmacro typ(function, type) do
     function = Builder.extract_function_name(function)
-    type = DT.fun(parameters, _) = Builder.from_ast(type)
-    arity = length(parameters)
+    {function, arity, type} = do_typ(function, type, __CALLER__)
     _ = Builder.save_type({function, arity}, type, __CALLER__.module, __CALLER__)
     nil
   end
 
-  defmacro foreign(~m/import #{module}.#{function} :: (#{type})/) do
-    type = DT.fun(parameters, _) = Builder.from_ast(type)
+  def do_typ(function, type, _caller) do
+    quantifiers =
+      Keyword.get(type, :V, [])
+      |> MapSet.new(fn {name, _meta, ctxt} when is_atom(name) and is_atom(ctxt) -> name end)
+    _constraints = Keyword.get(type, :C, [])
+    type = DT.fun(parameters, _) = Builder.from_ast(Keyword.fetch!(type, :-), quantifiers)
     arity = length(parameters)
+    {function, arity, type}
+  end
+
+  defmacro foreign(~m/import #{module}.#{function}, #{type}/) do
+    #type = DT.fun(parameters, _) = Builder.from_ast(type)
+    #arity = length(parameters)
+    {function, arity, type} = do_typ(function, type, __CALLER__)
     _ = Builder.save_type({function, arity}, type, __CALLER__.module, __CALLER__)
 
     args = Macro.generate_arguments(arity, __CALLER__.module)

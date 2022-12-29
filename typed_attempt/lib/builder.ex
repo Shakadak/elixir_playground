@@ -4,7 +4,15 @@ defmodule Builder do
   alias DataTypes, as: DT
   require DT
 
-  def type_to_string(type), do: Macro.to_string(type_to_ast(type))
+  def type_to_string(type) do
+    {ast, quants} = type_to_ast(type)
+    if Enum.empty?(quants) do
+      [-: ast]
+    else
+      [V: Enum.map(quants, &{&1, [], nil}), -: ast]
+    end
+    |> Macro.to_string()
+  end
 
   def pattern_type_mismatch(ast, unified_type, expected_type) do
     unified_type_string = Macro.to_string(type_to_ast(unified_type))
@@ -230,23 +238,39 @@ defmodule Builder do
     _ = Module.put_attribute(module, :types, types)
   end
 
-  def type_to_ast(DT.variable(name)), do: {name, [], nil}
-  def type_to_ast(DT.rigid_variable(name)), do: {name, [], nil}
-  def type_to_ast(DT.hkt(name, args)), do: {name, [], Enum.map(args, &type_to_ast/1)}
-  def type_to_ast(DT.type(name)), do: {name, [], []}
-  def type_to_ast(DT.fun(params, return)) do
-    params_ast = Enum.map(params, &type_to_ast/1)
-    return_ast = type_to_ast(return)
-    quote do (unquote_splicing(params_ast) -> unquote(return_ast)) end
+  def type_to_ast(type) do
+    case type do
+      DT.variable(name) -> {{name, [], nil}, MapSet.new([name])}
+      DT.rigid_variable(name) -> {{name, [], nil}, MapSet.new([name])}
+      DT.hkt(name, args) ->
+        {args, quants} = Enum.map_reduce(args, MapSet.new(), fn arg, quants ->
+          {arg_ast, quants2} = type_to_ast(arg)
+          {arg_ast, MapSet.union(quants, quants2)}
+        end)
+        {{name, [], args}, quants}
+      DT.type(name) -> {{name, [], []}, MapSet.new()}
+      DT.fun(params, return) ->
+        {params_ast, param_quants} = Enum.map_reduce(params, MapSet.new(), fn param, quants ->
+          {param_ast, quants2} = type_to_ast(param)
+          {param_ast, MapSet.union(quants, quants2)}
+        end)
+        #{params_ast, params_quants} = Enum.map(params, &type_to_ast/1)
+        {return_ast, return_quants} = type_to_ast(return)
+        ast = quote do (unquote_splicing(params_ast) -> unquote(return_ast)) end
+        {ast, MapSet.union(param_quants, return_quants)}
+    end
   end
 
-  def from_ast({name, _meta, ctxt}) when is_atom(ctxt), do: DT.variable(name)
-  def from_ast({name, _meta, []}), do: DT.type(name)
-  def from_ast({name, _meta, [_|_] = args}), do: DT.hkt(name, Enum.map(args, &from_ast/1))
-  def from_ast(~m/(#{...parameters} -> #{return})/) do
-    parameters = Enum.map(parameters, &from_ast/1)
-    return = from_ast(return)
-    DT.fun(parameters, return)
+  def from_ast(ast, quants) do
+    case ast do
+      {name, _meta, ctxt} when is_atom(ctxt) and is_map_key(quants.map, name) -> DT.variable(name)
+      {name, _meta, []} -> DT.type(name)
+      {name, _meta, [_|_] = args} -> DT.hkt(name, Enum.map(args, &from_ast(&1, quants)))
+      ~m/(#{...parameters} -> #{return})/ ->
+        parameters = Enum.map(parameters, &from_ast(&1, quants))
+        return = from_ast(return, quants)
+        DT.fun(parameters, return)
+    end
   end
 
   def extract_function_name({function, _, context}) when is_atom(context), do: function
