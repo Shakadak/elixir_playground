@@ -118,15 +118,15 @@ defmodule TypedAttempt do
       :error ->
         IO.inspect(unified_type, label: "type mismatch / unified type")
         IO.inspect(return_type, label: "type mismatch / return type")
-        expected_type_string = Builder.type_to_string(return_type)
-        unified_type_string = Builder.type_to_string(unified_type)
+        expected_type_string = Builder.expr_type_to_string({:_, [], nil}, return_type)
+        unified_type_string = Builder.expr_type_to_string(List.last(body), unified_type)
         msg =
           """
           -- Type mismatch --
-          The function #{function}/#{arity} expected a type #{expected_type_string} for its last expression, but instead got:
-              #{Macro.to_string(:lists.last(body))} :: #{unified_type_string}
+          The function #{function}/#{arity} expected #{expected_type_string} for its last expression, but instead got:
+              #{unified_type_string}
           """
-        raise(msg)
+        raise(CompileError, file: caller.file, line: caller.line, description: msg)
     end
 
     quote do

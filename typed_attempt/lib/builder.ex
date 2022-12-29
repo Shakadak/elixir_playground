@@ -4,26 +4,50 @@ defmodule Builder do
   alias DataTypes, as: DT
   require DT
 
-  def type_to_string(type) do
+  def ast_to_string(ast, opts \\ []) do
+    {line_length, opts} = Keyword.pop(opts, :line_length, 98)
+    doc = Inspect.Algebra.format(Code.quoted_to_algebra(ast, opts), line_length)
+    IO.iodata_to_binary(doc)
+  end
+
+  def expr_type_to_string(expr, type) do
     {ast, quants} = type_to_ast(type)
     if Enum.empty?(quants) do
       [-: ast]
     else
       [V: Enum.map(quants, &{&1, [], nil}), -: ast]
     end
-    |> Macro.to_string()
+    |> case do x -> {:typ, [], [expr, x]} end
+    |> ast_to_string(locals_without_parens: [typ: 2])
   end
 
-  def pattern_type_mismatch(ast, unified_type, expected_type) do
-    unified_type_string = Macro.to_string(type_to_ast(unified_type))
-    expected_type_string = Macro.to_string(type_to_ast(expected_type))
+  def remove_brackets(type_string) do
+    type_string
+    |> String.trim("[")
+    |> String.trim("]")
+  end
+
+  def type_to_string(type) do
+    {ast, quants} = type_to_ast(type)
+    if Enum.empty?(quants) do
+      ast
+    else
+      [V: Enum.map(quants, &{&1, [], nil}), -: ast]
+    end
+    |> Macro.to_string()
+    |> remove_brackets()
+  end
+
+  def pattern_type_mismatch(ast, unified_type, expected_type, caller) do
+    unified_type_string = expr_type_to_string(ast, unified_type)
+    expected_type_string = expr_type_to_string(ast, expected_type)
     msg =
       """
       -- Type mismatch
-      The pattern #{Macro.to_string(ast)} expected a type #{expected_type_string} as its expression, but instead got:
-          #{Macro.to_string(ast)} :: #{unified_type_string}
+      The pattern #{Macro.to_string(ast)} expected #{expected_type_string} as its expression, but instead got:
+          #{unified_type_string}
       """
-    raise(msg)
+    raise(CompileError, file: caller.file, line: caller.line, description: msg)
   end
 
   def unnest_whens(~m/#{x} when #{whens}/), do: [x | unnest_whens(whens)]
@@ -46,8 +70,8 @@ defmodule Builder do
         zip_param(l, type, caller) ++ zip_param(r, type, caller)
 
       {ast, expected_type} ->
-        unified_type = unify_type!(ast, %{}, caller)
-        pattern_type_mismatch(ast, unified_type, expected_type)
+        {unified_type, _env} = unify_type!(ast, %{}, caller)
+        pattern_type_mismatch(ast, unified_type, expected_type, caller)
     end
   end
 
@@ -80,6 +104,7 @@ defmodule Builder do
       {type, DT.unknown()} -> type
       {DT.hkt(name, args1), DT.hkt(name, args2)} ->
         DT.hkt(name, Enum.zip_with(args1, args2, &merge_unknowns/2))
+      _other -> infered
     end
   end
 
@@ -148,7 +173,7 @@ defmodule Builder do
 
       [] -> {DT.hkt(:list, [DT.unknown()]), env}
 
-      ~m/[#{x} | #{xs}]/ ->
+      ~m/[#{x} | #{xs}]/ = ast ->
         {head_type, env} = unify_type!(x, env, caller)
         expected_type = DT.hkt(:list, [head_type])
 
@@ -156,9 +181,13 @@ defmodule Builder do
 
         case match_type(expected_type, unified_type, %{}) do
           :error ->
-            expected_type_string = Macro.to_string(Enum.map(expected_type, &type_to_ast/1))
-            unified_type_string = Macro.to_string(Enum.map(unified_type, &type_to_ast/1))
-            raise("Could not match expected type: #{expected_type_string} with actual type: #{unified_type_string}")
+            expected_type_string = expr_type_to_string([{:|, [], [x, {:_, [], nil}]}], expected_type)
+            unified_type_string = expr_type_to_string(xs, unified_type)
+            [{_, meta, _}] = ast
+            raise(CompileError,
+              file: caller.file,
+              line: Keyword.get(meta, :line, caller.line),
+              description: "Could not match expected #{expected_type_string} with actual #{unified_type_string}")
 
           {:ok, _vars_env} ->
             {expected_type, env}
@@ -171,7 +200,7 @@ defmodule Builder do
         type = DT.fun(param_types, return_type)
         {type, env}
 
-      ~m/#{function}.(#{...params})/ ->
+      ~m/#{function}.(#{...params})/ = ast ->
         #arity = length(params)
         var2 = Macro.update_meta(function, &Keyword.delete(&1, :line))
         DT.fun(param_types, return_type) = Map.fetch!(env.vars, var2)
@@ -183,7 +212,11 @@ defmodule Builder do
           :error ->
             expected_type = Macro.to_string(Enum.map(param_types, &type_to_ast/1))
             unified_type = Macro.to_string(Enum.map(unified_param_types, &type_to_ast/1))
-            raise("Could not match expected type: #{expected_type} with actual type: #{unified_type}")
+            {_, meta, _} = ast
+            raise(CompileError,
+              file: caller.file,
+              line: Keyword.get(meta, :line, caller.line),
+              description: "Could not match expected type: #{expected_type} with actual type: #{unified_type}")
 
           {:ok, vars_env} ->
             return_type = map_type_variables(return_type, fn var ->
