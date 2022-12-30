@@ -90,6 +90,8 @@ defmodule Builder do
       DT.type(_) = x -> x
       DT.rigid_variable(_) = x -> x
       DT.variable(name) -> f.(name)
+      DT.alt(xs) ->
+        DT.alt(Enum.map(xs, &map_type_variables(&1, f)))
       DT.hkt(name, params) ->
         DT.hkt(name, Enum.map(params, &map_type_variables(&1, f)))
       DT.fun(params, return) ->
@@ -100,37 +102,72 @@ defmodule Builder do
 
   def merge_unknowns(expected, infered) do
     case {expected, infered} do
-      {x, x} -> x
-      {type, DT.unknown()} -> type
-      {DT.hkt(name, args1), DT.hkt(name, args2)} ->
-        DT.hkt(name, Enum.zip_with(args1, args2, &merge_unknowns/2))
-      _other -> infered
+      {x, x} -> {:ok, x}
+      {type, DT.unknown()} -> {:ok, type}
+      {DT.hkt(name, args1), DT.hkt(name, args2)} when length(args1) == length(args2) ->
+        Stream.zip_with(args1, args2, &merge_unknowns/2)
+        |> Enum.reduce_while([], fn
+          {:ok, arg}, rargs -> {:cont, {:ok, [arg | rargs]}}
+          :error, _ -> {:halt, :error}
+        end)
+        |> case do
+          :error -> :error
+          {:ok, rargs} -> {:ok, DT.hkt(name, Enum.reverse(rargs))}
+        end
+
+      {DT.alt(_xs) = t, DT.alt(ys)} ->
+        Stream.map(ys, &merge_unknowns(t, &1))
+        |> Enum.reduce_while([], fn
+          {:ok, arg}, rargs -> {:cont, [arg | rargs]}
+          :error, _ -> {:halt, :error}
+        end)
+        |> case do
+          :error -> :error
+          [z] -> {:ok, z}
+          zs -> {:ok, DT.alt(Enum.reverse(zs))}
+        end
+
+      {DT.alt(xs), type} ->
+        Stream.map(xs, &merge_unknowns(&1, type))
+        |> Enum.find(:error, &match?({:ok, _}, &1))
+
+      _other -> :error
     end
   end
 
-  def match_type(type, type, env), do: {:ok, env}
-  # If the type variable is already in the env, and is the same as the target type
-  def match_type(DT.variable(name), type, env) when :erlang.map_get(name, env) == type, do: {:ok, env}
-  # If the type variable is already in the env, but is different from the target type
-  def match_type(DT.variable(name), type, env) when :erlang.map_get(name, env) != type, do: :error
-  # If the type variable is not in the env, we add it
-  def match_type(DT.variable(name), type, env), do: {:ok, Map.put(env, name, type)}
-  def match_type(DT.hkt(name, args), DT.hkt(name, args2), env) do
-    Enum.zip(args, args2)
-    |> Enum.reduce({:ok, env}, fn
-      _, :error = x -> x
-      {src, tgt}, {:ok, env} -> match_type(src, tgt, env)
-    end)
-  end
-  def match_type(DT.fun(params1, return1), DT.fun(params2, return2), env) do
-    case match_args(params1, params2, env) do
-      {:ok, env} -> match_type(return1, return2, env)
-      :error -> :error
-    end
-  end
   def match_type(src, tgt, env) do
-    _ = IO.inspect(%{src: src, tgt: tgt, env: env}, label: "match_type")
-    :error
+    case {src, tgt} do
+      {type, type} -> {:ok, env}
+      # If the type variable is already in the env, and is the same as the target type
+      {DT.variable(name), type} when :erlang.map_get(name, env) == type -> {:ok, env}
+      # If the type variable is already in the env, but is different from the target type
+      {DT.variable(name), type} when :erlang.map_get(name, env) != type -> :error
+      # If the type variable is not in the env, we add it
+      {DT.variable(name), type} -> {:ok, Map.put(env, name, type)}
+      #{src, DT.alt(xs)} ->
+      #  Stream.map(xs, fn tgt -> match_type(src, tgt, env) end)
+      #  |> Enum.find(:error, &match?({:ok, _}, &1))
+        #Enum.reduce_while(xs, :error, fn tgt, _ ->
+        #  case match_type(src, tgt, env) do
+        #    :error -> {:cont, :error}
+        #    {:ok, _} = x -> {:halt, x}
+        #  end
+        #end)
+      {DT.hkt(name, args), DT.hkt(name, args2)} ->
+        Enum.zip(args, args2)
+        |> Enum.reduce({:ok, env}, fn
+          _, :error = x -> x
+          {src, tgt}, {:ok, env} -> match_type(src, tgt, env)
+        end)
+      {DT.fun(params1, return1), DT.fun(params2, return2)} ->
+        case match_args(params1, params2, env) do
+          {:ok, env} -> match_type(return1, return2, env)
+          :error -> :error
+        end
+      {src, tgt} ->
+        _ = IO.inspect(%{src: src, tgt: tgt, env: env}, label: "match_type")
+        :error
+    end
   end
 
   def match_args([], [], env), do: {:ok, env}
@@ -273,15 +310,28 @@ defmodule Builder do
 
   def type_to_ast(type) do
     case type do
+      DT.unknown() -> {{:"?", [], nil}, MapSet.new()}
+
       DT.variable(name) -> {{name, [], nil}, MapSet.new([name])}
+
       DT.rigid_variable(name) -> {{name, [], nil}, MapSet.new([name])}
+
+      DT.alt(args) ->
+        {args, quants} = Enum.map_reduce(args, MapSet.new(), fn arg, quants ->
+          {arg_ast, quants2} = type_to_ast(arg)
+          {arg_ast, MapSet.union(quants, quants2)}
+        end)
+        {{:|, [], args}, quants}
+
       DT.hkt(name, args) ->
         {args, quants} = Enum.map_reduce(args, MapSet.new(), fn arg, quants ->
           {arg_ast, quants2} = type_to_ast(arg)
           {arg_ast, MapSet.union(quants, quants2)}
         end)
         {{name, [], args}, quants}
+
       DT.type(name) -> {{name, [], []}, MapSet.new()}
+
       DT.fun(params, return) ->
         {params_ast, param_quants} = Enum.map_reduce(params, MapSet.new(), fn param, quants ->
           {param_ast, quants2} = type_to_ast(param)
@@ -298,6 +348,7 @@ defmodule Builder do
     case ast do
       {name, _meta, ctxt} when is_atom(ctxt) and is_map_key(quants.map, name) -> DT.variable(name)
       {name, _meta, []} -> DT.type(name)
+      {:|, _meta, [_|_] = args} -> DT.alt(Enum.map(args, &from_ast(&1, quants)))
       {name, _meta, [_|_] = args} -> DT.hkt(name, Enum.map(args, &from_ast(&1, quants)))
       ~m/(#{...parameters} -> #{return})/ ->
         parameters = Enum.map(parameters, &from_ast(&1, quants))

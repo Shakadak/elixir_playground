@@ -50,9 +50,12 @@ defmodule Test do
   typ const, V: [a, b], -: (a, b -> a)
   det const(x, _), do: x
 
-  #typ len_b, V: [a], -: ((list(a) | binary()) -> int())
-  #det len_b(xs) when is_list(xs), do: len(xs)
-  #det len_b(bin) when is_binary(xs), do: byte_size(xs)
+  typ byte_size, -: (binary() -> int())
+
+  typ len_b, V: [a], -: ((list(a) | binary()) -> int())
+  #typ len_b, V: [a], -: (int() | binary() -> int())
+  det len_b(xs) when is_list(xs), do: len(xs)
+  det len_b(bin) when is_binary(bin), do: byte_size(bin)
 
   typ banana, -: (binary() -> int())
   det banana(x)

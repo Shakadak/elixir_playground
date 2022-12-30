@@ -60,7 +60,7 @@ defmodule TypedAttempt do
 
   @doc false
   def do_det(x, y, caller) do
-    debug? = true
+    debug? = false
     if debug? do
       IO.inspect(x)
       IO.inspect(y)
@@ -70,7 +70,18 @@ defmodule TypedAttempt do
       ~m/#{function}(#{...params}) when #{guards}/ -> {function, params, Builder.unnest_whens(guards)}
       ~m/#{function}(#{...params})/ -> {function, params, []}
     end
-    _ = IO.inspect(guards, label: "guards")
+    #_ = IO.inspect(guards, label: "guards")
+
+    guards_type_constraints =
+      guards
+      |> Enum.map(fn guard -> Infer.Guard.type_constraints_from_guard(guard) end)
+      |> Enum.reduce(%{}, &Map.merge(&1, &2, fn
+        _var, DT.alt(ts1), DT.alt(ts2) -> DT.alt(ts1 ++ ts2)
+        _var, DT.alt(ts1), t -> DT.alt(ts1 ++ [t])
+        _var, t, DT.alt(ts2) -> DT.alt([t] ++ ts2)
+        _var, t1, t2 -> DT.alt([t1, t2])
+      end))
+      #|> IO.inspect(label: "guards_type_constraints")
 
     params = case params do
       xs when is_list(xs) -> xs
@@ -82,10 +93,6 @@ defmodule TypedAttempt do
     module = caller.module
     module_types = Module.get_attribute(module, :types, %{})
 
-    #DT.fun(param_types, return_type) = Map.fetch!(module_types, {function, arity})
-    #param_types = Enum.map(param_types, &map_type_variables(&1, fn name -> DT.rigid_variable(name) end))
-    #return_type = map_type_variables(return_type, fn name -> DT.rigid_variable(name) end)
-
     DT.fun(param_types, return_type) =
       Map.fetch!(module_types, {function, arity})
       |> Builder.map_type_variables(fn name -> DT.rigid_variable(name) end)
@@ -93,6 +100,21 @@ defmodule TypedAttempt do
     vars =
       Builder.zip_params(params, param_types, caller)
       #|> IO.inspect(label: "vars")
+      |> Map.merge(guards_type_constraints, fn var, type, constraint ->
+          case Builder.merge_unknowns(type, constraint) do
+            {:ok, constrained_type} -> constrained_type
+            :error ->
+              expected_type_string = Builder.expr_type_to_string(var, type)
+              unified_type_string = Builder.expr_type_to_string(var, constraint)
+              msg =
+                """
+                -- Type mismatch --
+                The variable `#{Macro.to_string(var)}` in the head of #{function}/#{arity} was expected to be #{expected_type_string}, but instead got:
+                    #{unified_type_string}
+                """
+              raise(CompileError, file: caller.file, line: caller.line, description: msg)
+          end
+      end)
 
     typing_env =
       %{
@@ -112,7 +134,7 @@ defmodule TypedAttempt do
       end)
 
     #_ = IO.inspect(last_expression_type, label: "last expression type")
-    unified_type = Builder.merge_unknowns(return_type, last_expression_type)
+    {:ok, unified_type} = Builder.merge_unknowns(return_type, last_expression_type)
     _ = case Builder.match_type(return_type, unified_type, %{}) do
       {:ok, _env} -> :ok
       :error ->
