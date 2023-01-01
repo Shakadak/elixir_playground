@@ -38,7 +38,7 @@ defmodule TypedAttempt do
     end
   end
 
-  defmacro unsafe(~m/det #{head}, #{body}/) do
+  defmacro unsafe(~m/deft #{head}, #{body}/) do
     debug? = false
 
     quote do
@@ -54,12 +54,12 @@ defmodule TypedAttempt do
 
   # TODO Handle macro hygiene: a ≠ a
 
-  defmacro det(x, y) do
-    do_det(x, y, __CALLER__)
+  defmacro deft(x, y) do
+    do_deft(x, y, __CALLER__)
   end
 
   @doc false
-  def do_det(x, y, caller) do
+  def do_deft(x, y, caller) do
     debug? = false
     if debug? do
       IO.inspect(x)
@@ -169,14 +169,14 @@ defmodule TypedAttempt do
   #  _ = Builder.save_type({function, arity}, type, __CALLER__.module, __CALLER__)
   #  nil
   #end
-  defmacro typ(function, type) do
+  defmacro type(function, type) do
     function = Builder.extract_function_name(function)
-    {function, arity, type} = do_typ(function, type, __CALLER__)
+    {function, arity, type} = do_type(function, type, __CALLER__)
     _ = Builder.save_type({function, arity}, type, __CALLER__.module, __CALLER__)
     nil
   end
 
-  def do_typ(function, type, _caller) do
+  def do_type(function, type, _caller) do
     quantifiers =
       Keyword.get(type, :V, [])
       |> MapSet.new(fn {name, _meta, ctxt} when is_atom(name) and is_atom(ctxt) -> name end)
@@ -189,7 +189,7 @@ defmodule TypedAttempt do
   defmacro foreign(~m/import #{module}.#{function}, #{type}/) do
     #type = DT.fun(parameters, _) = Builder.from_ast(type)
     #arity = length(parameters)
-    {function, arity, type} = do_typ(function, type, __CALLER__)
+    {function, arity, type} = do_type(function, type, __CALLER__)
     _ = Builder.save_type({function, arity}, type, __CALLER__.module, __CALLER__)
 
     args = Macro.generate_arguments(arity, __CALLER__.module)
