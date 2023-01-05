@@ -17,7 +17,7 @@ defmodule Builder do
     else
       [V: Enum.map(quants, &{&1, [], nil}), -: ast]
     end
-    |> case do x -> {:typ, [], [expr, x]} end
+    |> case do x -> {:type, [], [expr, x]} end
     |> ast_to_string(locals_without_parens: [typ: 2])
   end
 
@@ -53,7 +53,8 @@ defmodule Builder do
   def unnest_whens(~m/#{x} when #{whens}/), do: [x | unnest_whens(whens)]
   def unnest_whens(x), do: [x]
 
-  def zip_param(param, type, caller) do
+  def zip_param(param, type, type_env, caller) do
+    constructors = type_env.constructors
     case {param, type} do
       {[], DT.hkt(:list, _)} -> []
       {x, DT.type(:int)} when is_integer(x) -> []
@@ -64,19 +65,37 @@ defmodule Builder do
         [{var, type}]
 
       {~m/[#{x} | #{xs}]/, DT.hkt(:list, [sub_type]) = type} ->
-        zip_param(x, sub_type, caller) ++ zip_param(xs, type, caller)
+        zip_param(x, sub_type, type_env, caller) ++ zip_param(xs, type, type_env, caller)
 
       {~m/#{l} = #{r}/, type} ->
-        zip_param(l, type, caller) ++ zip_param(r, type, caller)
+        zip_param(l, type, type_env, caller) ++ zip_param(r, type, type_env, caller)
+
+      {~m/#{name}(#{...params})/ = ast, type} when is_map_key(constructors, {name, length(params)}) ->
+        DT.fun(param_types, return_type) = ct_type =
+          Map.fetch!(constructors, {name, length(params)})
+
+        _ = case Builder.match_type(return_type, type, %{}) do
+          {:ok, vars_env} ->
+            param_types = for param_type <- param_types, do: map_type_variables(param_type, fn var ->
+              case Map.fetch(vars_env, var) do
+                {:ok, x} -> x
+                :error -> DT.variable(var)
+              end
+            end)
+            zip_params(params, param_types, type_env, caller)
+
+          :error ->
+            pattern_type_mismatch(ast, ct_type, type, caller)
+        end
 
       {ast, expected_type} ->
-        {unified_type, _env} = unify_type!(ast, %{}, caller)
+        {unified_type, _env} = unify_type!(ast, type_env, caller)
         pattern_type_mismatch(ast, unified_type, expected_type, caller)
     end
   end
 
-  def zip_params(params, param_types, caller) do
-    Enum.zip_with(params, param_types, &zip_param(&1, &2, caller))
+  def zip_params(params, param_types, type_env, caller) do
+    Enum.zip_with(params, param_types, &zip_param(&1, &2, type_env, caller))
     |> Enum.concat()
     |> Map.new()
   end
@@ -266,9 +285,13 @@ defmodule Builder do
             {return_type, env}
         end
 
-      ~m/#{function}(#{...params})/ = {_, meta, _} ->
+      ~m/#{name}(#{...params})/ = {_, meta, _} ->
         arity = length(params)
-        DT.fun(param_types, return_type) = Map.fetch!(env.functions, {function, arity})
+        DT.fun(param_types, return_type) =
+          case Map.fetch(env.functions, {name, arity}) do
+            {:ok, type} -> type
+            :error -> Map.fetch!(env.constructors, {name, arity})
+          end
 
         {unified_param_types, _envs} =
           Enum.map(params, &unify_type!(&1, env, caller))
@@ -290,14 +313,18 @@ defmodule Builder do
                 :error -> DT.variable(var)
               end
             end)
-            #|> IO.inspect(label: "#{function} :")
+            #|> IO.inspect(label: "#{name} :")
             {return_type, env}
         end
     end
   end
 
-  def save_type(fa, type, module, env) do
-    types = Module.get_attribute(module, :types, %{})
+  def save_type(kind, fa, type, module, env) do
+    attribute = case kind do
+      :function -> :functions_types
+      :constructor -> :constructors_types
+    end
+    types = Module.get_attribute(module, attribute, %{})
     types = Map.update(types, fa, type, fn type1 ->
       {function, arity} = fa
       raise(CompileError,
@@ -305,7 +332,7 @@ defmodule Builder do
         line: env.line,
         description: "Type for #{inspect(module)}.#{function}/#{inspect(arity)} already exist : #{type_to_string(type1)} (would be replaced with : #{type_to_string(type)}")
     end)
-    _ = Module.put_attribute(module, :types, types)
+    _ = Module.put_attribute(module, attribute, types)
   end
 
   def type_to_ast(type) do

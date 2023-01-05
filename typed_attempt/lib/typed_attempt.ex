@@ -4,9 +4,12 @@ defmodule TypedAttempt do
   require DT
 
   def fetch_types(module) do
-    case Keyword.fetch(module.__info__(:attributes), :types) do
-      {:ok, [types]} -> {:ok, types}
-      _ -> {:error, "No type found in module #{inspect(module)}"}
+    Keyword.get(module.__info__(:attributes), :constructors_types, [])
+    ++ Keyword.get(module.__info__(:attributes), :functions_types, [])
+    |> Enum.concat()
+    |> case do
+      [] -> {:error, "No type found in module #{inspect(module)}"}
+      [_|_] = types -> {:ok, types}
     end
   end
 
@@ -31,10 +34,12 @@ defmodule TypedAttempt do
   end
 
   defmacro __using__(_opts) do
-      _ = Module.register_attribute(__CALLER__.module, :types, persist: true)
+      _ = Module.register_attribute(__CALLER__.module, :constructors_types, persist: true)
+      _ = Module.register_attribute(__CALLER__.module, :functions_types, persist: true)
       #_ = IO.inspect(Module.has_attribute?(__CALLER__.module, :types), label: "has_attribute?")
     quote do
       import unquote(__MODULE__)
+      import TypeDeclaration
     end
   end
 
@@ -91,14 +96,20 @@ defmodule TypedAttempt do
     arity = length(params)
 
     module = caller.module
-    module_types = Module.get_attribute(module, :types, %{})
+    functions_types = Module.get_attribute(module, :functions_types, %{})
+    constructors_types =
+      Module.get_attribute(module, :constructors_types, %{})
 
     DT.fun(param_types, return_type) =
-      Map.fetch!(module_types, {function, arity})
+      Map.fetch!(functions_types, {function, arity})
       |> Builder.map_type_variables(fn name -> DT.rigid_variable(name) end)
 
+    params_typing_env = %{
+      constructors: constructors_types,
+      functions: %{},
+    }
     vars =
-      Builder.zip_params(params, param_types, caller)
+      Builder.zip_params(params, param_types, params_typing_env, caller)
       #|> IO.inspect(label: "vars")
       |> Map.merge(guards_type_constraints, fn var, type, constraint ->
           case Builder.merge_unknowns(type, constraint) do
@@ -119,7 +130,8 @@ defmodule TypedAttempt do
     typing_env =
       %{
         vars: vars,
-        functions: module_types,
+        functions: functions_types,
+        constructors: constructors_types,
       }
       #|> IO.inspect(label: "initial typing_env")
 
@@ -172,7 +184,7 @@ defmodule TypedAttempt do
   defmacro type(function, type) do
     function = Builder.extract_function_name(function)
     {function, arity, type} = do_type(function, type, __CALLER__)
-    _ = Builder.save_type({function, arity}, type, __CALLER__.module, __CALLER__)
+    _ = Builder.save_type(:function, {function, arity}, type, __CALLER__.module, __CALLER__)
     nil
   end
 
@@ -187,15 +199,22 @@ defmodule TypedAttempt do
   end
 
   defmacro foreign(~m/import #{module}.#{function}, #{type}/) do
+    debug? = false
     #type = DT.fun(parameters, _) = Builder.from_ast(type)
     #arity = length(parameters)
     {function, arity, type} = do_type(function, type, __CALLER__)
-    _ = Builder.save_type({function, arity}, type, __CALLER__.module, __CALLER__)
+    _ = Builder.save_type(:function, {function, arity}, type, __CALLER__.module, __CALLER__)
 
     args = Macro.generate_arguments(arity, __CALLER__.module)
     quote do
       import unquote(module), except: [{unquote(function), unquote(arity)}]
       def unquote(function)(unquote_splicing(args)), do: unquote(module).unquote(function)(unquote_splicing(args))
+    end
+    |> case do x ->
+        if debug? do
+          IO.puts(Macro.to_string(x))
+        end
+        ; x
     end
   end
 end
