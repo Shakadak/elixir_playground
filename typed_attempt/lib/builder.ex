@@ -53,52 +53,6 @@ defmodule Builder do
   def unnest_whens(~m/#{x} when #{whens}/), do: [x | unnest_whens(whens)]
   def unnest_whens(x), do: [x]
 
-  def zip_param(param, type, type_env, caller) do
-    constructors = type_env.constructors
-    case {param, type} do
-      {[], DT.hkt(:list, _)} -> []
-      {x, DT.type(:int)} when is_integer(x) -> []
-      {x, DT.type(:atom)} when is_atom(x) -> []
-      {x, DT.type(:binary)} when is_binary(x) -> []
-      {{_name, _meta, context} = var, type} when is_atom(context) ->
-        var = Macro.update_meta(var, &Keyword.delete(&1, :line))
-        [{var, type}]
-
-      {~m/[#{x} | #{xs}]/, DT.hkt(:list, [sub_type]) = type} ->
-        zip_param(x, sub_type, type_env, caller) ++ zip_param(xs, type, type_env, caller)
-
-      {~m/#{l} = #{r}/, type} ->
-        zip_param(l, type, type_env, caller) ++ zip_param(r, type, type_env, caller)
-
-      {~m/#{name}(#{...params})/ = ast, type} when is_map_key(constructors, {name, length(params)}) ->
-        DT.fun(param_types, return_type) = ct_type =
-          Map.fetch!(constructors, {name, length(params)})
-
-        _ = case Builder.match_type(return_type, type, %{}) do
-          {:ok, vars_env} ->
-            param_types = for param_type <- param_types, do: map_type_variables(param_type, fn var ->
-              case Map.fetch(vars_env, var) do
-                {:ok, x} -> x
-                :error -> DT.variable(var)
-              end
-            end)
-            zip_params(params, param_types, type_env, caller)
-
-          :error ->
-            pattern_type_mismatch(ast, ct_type, type, caller)
-        end
-
-      {ast, expected_type} ->
-        {unified_type, _env} = unify_type!(ast, type_env, caller)
-        pattern_type_mismatch(ast, unified_type, expected_type, caller)
-    end
-  end
-
-  def zip_params(params, param_types, type_env, caller) do
-    Enum.zip_with(params, param_types, &zip_param(&1, &2, type_env, caller))
-    |> Enum.concat()
-    |> Map.new()
-  end
 
   def comparable_var(var) do
     Macro.update_meta(var, &Keyword.delete(&1, :line))

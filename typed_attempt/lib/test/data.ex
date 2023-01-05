@@ -22,6 +22,10 @@ defmodule Test.Data do
   deft option(default, _, none()), do: default
   deft option(_, f, some(x)), do: f.(x)
 
+  #type either, V: [l, r, tgt], -: ((l -> tgt), (r -> tgt), either(l, r) -> tgt)
+  #deft either(on_l, _, left(x)), do: left(on_l.(x))
+  #deft either(_, on_r, right(x)), do: on_r.(x)
+
   #newtype additive(a), do: type mkAdditive, -: (a -> additive(a))
 
   #newtype state(s, a),
