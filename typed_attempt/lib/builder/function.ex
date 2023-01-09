@@ -1,7 +1,10 @@
 defmodule Builder.Function do
-  import Circe
+  import  Circe
 
-  alias DataTypes, as: DT
+  import  Data.Result
+  alias   Data.Result
+
+  alias   DataTypes, as: DT
 
   require DT
 
@@ -46,11 +49,31 @@ defmodule Builder.Function do
     body = extract_do_list(y)
 
     {last_expression_type, _env} =
-      Enum.reduce(body, {:void, typing_env}, fn expression, {_, typing_env} ->
-        {_expression_type, _typing_env} = Builder.unify_type!(expression, typing_env, caller)
+      Result.foldlM(body, {:void, typing_env}, fn expression, {_, typing_env} ->
+        Builder.Unify.unify_type!(expression, typing_env)
       end)
+      |> case do
+        ok(x) -> x
+        error({kind, args}) ->
+          defaults = [file: caller.file, line: caller.line]
+          args = Keyword.merge(defaults, args)
+          raise(kind, args)
+      end
 
-    {:ok, unified_type} = Builder.merge_unknowns(return_type, last_expression_type)
+      unified_type = case Builder.merge_unknowns(return_type, last_expression_type) do
+        {:ok, unified_type} -> unified_type
+        :error ->
+          expected_type_string = Builder.expr_type_to_string({:_, [], nil}, return_type)
+          unified_type_string = Builder.expr_type_to_string(List.last(body), last_expression_type)
+          msg =
+            """
+            -- Type mismatch --
+            The function #{function}/#{arity} expected #{expected_type_string} for its last expression, but instead got:
+                #{unified_type_string}
+            """
+          raise(CompileError, file: caller.file, line: caller.line, description: msg)
+      end
+
     _ = case Builder.match_type(return_type, unified_type, %{}) do
       {:ok, _env} -> :ok
       :error ->

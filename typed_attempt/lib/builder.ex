@@ -1,7 +1,7 @@
 defmodule Builder do
-  import Circe
+  import  Circe
 
-  alias DataTypes, as: DT
+  alias   DataTypes, as: DT
   require DT
 
   def ast_to_string(ast, opts \\ []) do
@@ -18,7 +18,7 @@ defmodule Builder do
       [V: Enum.map(quants, &{&1, [], nil}), -: ast]
     end
     |> case do x -> {:type, [], [expr, x]} end
-    |> ast_to_string(locals_without_parens: [typ: 2])
+    |> ast_to_string(locals_without_parens: [type: 2])
   end
 
   def remove_brackets(type_string) do
@@ -148,128 +148,6 @@ defmodule Builder do
     case match_type(src, tgt, env) do
       {:ok, env} -> match_args(srcs, tgts, env)
       :error -> :error
-    end
-  end
-
-  def unify_type!(expression, env, caller) do
-    case expression do
-      x when is_integer(x) -> {DT.type(:int), env}
-      x when is_float(x) -> {DT.type(:float), env}
-      x when is_atom(x) -> {DT.type(:atom), env}
-      x when is_binary(x) -> {DT.type(:binary), env}
-      x when is_boolean(x) -> {DT.type(:boolean), env}
-
-      {_name, meta, context} = var when is_atom(context) ->
-        var2 = Macro.update_meta(var, &Keyword.delete(&1, :line))
-        var_type = case Map.fetch(env.vars, var2) do
-          {:ok, type} -> type
-          :error -> raise(CompileError,
-              file: caller.file,
-              line: Keyword.get(meta, :line, caller.line),
-              description: "Var: #{Macro.to_string(var)} (line #{Keyword.fetch!(meta, :line)}) has no previous binding.")
-        end
-        {var_type, env}
-
-      {l, r} ->
-        {l_type, env} = unify_type!(l, env, caller)
-        {r_type, env} = unify_type!(r, env, caller)
-        {DT.hkt(:tuple, [l_type, r_type]), env}
-
-      ~m/#{{_, _, c} = var} = #{expression}/ when is_atom(c) ->
-        var = comparable_var(var)
-        {var_type, env} = unify_type!(expression, env, caller)
-        env = put_in(env, [:vars, var], var_type)
-        {var_type, env}
-
-      [] -> {DT.hkt(:list, [DT.unknown()]), env}
-
-      ~m/[#{x} | #{xs}]/ = ast ->
-        {head_type, env} = unify_type!(x, env, caller)
-        expected_type = DT.hkt(:list, [head_type])
-
-        {unified_type, env} = _ret = unify_type!(xs, env, caller)
-
-        case match_type(expected_type, unified_type, %{}) do
-          :error ->
-            expected_type_string = expr_type_to_string([{:|, [], [x, {:_, [], nil}]}], expected_type)
-            unified_type_string = expr_type_to_string(xs, unified_type)
-            [{_, meta, _}] = ast
-            raise(CompileError,
-              file: caller.file,
-              line: Keyword.get(meta, :line, caller.line),
-              description: "Could not match expected #{expected_type_string} with actual #{unified_type_string}")
-
-          {:ok, _vars_env} ->
-            {expected_type, env}
-        end
-
-      ~m(&#{{function, _meta, _ctxt}}/#{arity}) ->
-        #_ = IO.inspect(function)
-        #_ = IO.inspect(arity)
-        DT.fun(param_types, return_type) = Map.fetch!(env.functions, {function, arity})
-        type = DT.fun(param_types, return_type)
-        {type, env}
-
-      ~m/#{function}.(#{...params})/ = ast ->
-        #arity = length(params)
-        var2 = Macro.update_meta(function, &Keyword.delete(&1, :line))
-        DT.fun(param_types, return_type) = Map.fetch!(env.vars, var2)
-
-        {unified_param_types, _envs} =
-          Enum.map(params, &unify_type!(&1, env, caller))
-          |> Enum.unzip()
-        case match_args(param_types, unified_param_types, %{}) do
-          :error ->
-            expected_type = Macro.to_string(Enum.map(param_types, &type_to_ast/1))
-            unified_type = Macro.to_string(Enum.map(unified_param_types, &type_to_ast/1))
-            {_, meta, _} = ast
-            raise(CompileError,
-              file: caller.file,
-              line: Keyword.get(meta, :line, caller.line),
-              description: "Could not match expected type: #{expected_type} with actual type: #{unified_type}")
-
-          {:ok, vars_env} ->
-            return_type = map_type_variables(return_type, fn var ->
-              case Map.fetch(vars_env, var) do
-                {:ok, x} -> x
-                :error -> DT.variable(var)
-              end
-            end)
-            #|> IO.inspect(label: "#{Macro.to_string(function)} :")
-            {return_type, env}
-        end
-
-      ~m/#{name}(#{...params})/ = {_, meta, _} ->
-        arity = length(params)
-        DT.fun(param_types, return_type) =
-          case Map.fetch(env.functions, {name, arity}) do
-            {:ok, type} -> type
-            :error -> Map.fetch!(env.constructors, {name, arity})
-          end
-
-        {unified_param_types, _envs} =
-          Enum.map(params, &unify_type!(&1, env, caller))
-          |> Enum.unzip()
-
-        case match_args(param_types, unified_param_types, %{}) do
-          :error ->
-            expected_type = Enum.join(Enum.map(param_types, &type_to_string/1), ", ")
-            unified_type = Enum.join(Enum.map(unified_param_types, &type_to_string/1), ", ")
-            raise(CompileError,
-              file: caller.file,
-              line: Keyword.get(meta, :line, caller.line),
-              description: "Could not match expected type: #{expected_type} with actual type: #{unified_type}")
-
-          {:ok, vars_env} ->
-            return_type = map_type_variables(return_type, fn var ->
-              case Map.fetch(vars_env, var) do
-                {:ok, x} -> x
-                :error -> DT.variable(var)
-              end
-            end)
-            #|> IO.inspect(label: "#{name} :")
-            {return_type, env}
-        end
     end
   end
 

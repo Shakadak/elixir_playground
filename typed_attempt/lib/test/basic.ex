@@ -57,6 +57,18 @@ defmodule Test.Basic do
   deft len_b(xs) when is_list(xs), do: len(xs)
   deft len_b(bin) when is_binary(bin), do: byte_size(bin)
 
+  type fst, V: [a, b], -: (tuple(a, b) -> a)
+  type snd, V: [a, b], -: (tuple(a, b) -> b)
+
+  deft fst({x, _}), do: x
+  deft snd({_, y}), do: y
+
+  type tuple, V: [l, r], -: (l, r -> tuple(l, r))
+  deft tuple(a, b), do: {a, b}
+
+  type swap, V: [l, r], -: (tuple(l, r) -> tuple(r, l))
+  deft swap({x, y}), do: {y, x}
+
   type banana, -: (binary() -> int())
   deft banana(x)
   when x == 1

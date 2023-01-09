@@ -1,7 +1,9 @@
 defmodule Builder.Function.Parameter do
-  import Circe
+  import  Circe
 
-  alias DataTypes, as: DT
+  alias   Data.Result
+  require Result
+  alias   DataTypes, as: DT
 
   require DT
 
@@ -42,6 +44,9 @@ defmodule Builder.Function.Parameter do
         var = Macro.update_meta(var, &Keyword.delete(&1, :line))
         [{var, type}]
 
+      {{l, r}, DT.hkt(:tuple, [lt, rt])} ->
+        zip_param(l, lt, type_env, caller) ++ zip_param(r, rt, type_env, caller)
+
       {~m/[#{x} | #{xs}]/, DT.hkt(:list, [sub_type]) = type} ->
         zip_param(x, sub_type, type_env, caller) ++ zip_param(xs, type, type_env, caller)
 
@@ -67,7 +72,7 @@ defmodule Builder.Function.Parameter do
         end
 
       {ast, expected_type} ->
-        {unified_type, _env} = Builder.unify_type!(ast, type_env, caller)
+        Result.ok({unified_type, _env}) = Builder.Unify.unify_type!(ast, type_env)
         Builder.pattern_type_mismatch(ast, unified_type, expected_type, caller)
     end
   end
