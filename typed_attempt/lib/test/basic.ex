@@ -47,6 +47,9 @@ defmodule Test.Basic do
   type id, V: [a], -: (a -> a)
   deft id(x), do: x
 
+  #type plusnothings, -: (list(int()) -> list(int()))
+  #deft plusnothings(xs), do: map(&id/1, xs)
+
   type const, V: [a, b], -: (a, b -> a)
   deft const(x, _), do: x
 

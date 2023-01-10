@@ -19,7 +19,7 @@ defmodule Builder.Unify do
       {l, r} -> on_2_tuple(l, r, env)
       ~m/#{{_, _, c} = var} = #{expression}/ when is_atom(c) -> on_bind(var, expression, env)
       ~m/[#{x} | #{xs}]/ = [{_, meta, _}] -> on_cons(x, xs, meta, env)
-      ~m(&#{{function, _meta, _ctxt}}/#{arity}) -> on_function_capture(function, arity, env)
+      ~m(&#{{function, _meta, _ctxt}}/#{arity}) = {_, meta, _} -> on_function_capture(function, arity, meta, env)
       ~m/#{function}.(#{...params})/ = ast -> on_anonymous_call(function, params, ast, env)
       ~m/#{name}(#{...params})/ = {_, meta, _} -> on_function_call(name, params, meta, env)
     end
@@ -89,13 +89,14 @@ defmodule Builder.Unify do
     |> Result.map(&Enum.unzip/1)
     |> Result.bind(fn {unified_param_types, _envs} ->
       case Builder.match_args(param_types, unified_param_types, %{}) do
-        :error ->
-          expected_type = Enum.join(Enum.map(param_types, &Builder.type_to_string/1), ", ")
-          unified_type = Enum.join(Enum.map(unified_param_types, &Builder.type_to_string/1), ", ")
-          opts = Keyword.take(meta, [:line]) ++ [
-            description: "Could not match expected type: #{expected_type} with actual type: #{unified_type}"
-          ]
-          error({CompileError, opts})
+        Result.error({kind, opts}) ->
+          #expected_type = Enum.join(Enum.map(param_types, &Builder.type_to_string/1), ", ")
+          #unified_type = Enum.join(Enum.map(unified_param_types, &Builder.type_to_string/1), ", ")
+          #opts = Keyword.take(meta, [:line]) ++ [
+          #  description: "Could not match expected type: #{expected_type} with actual type: #{unified_type}"
+          #]
+          opts = Keyword.merge(Keyword.take(meta, [:line]), opts)
+          error({kind, opts})
 
         {:ok, vars_env} ->
           return_type = Builder.map_type_variables(return_type, fn var ->
@@ -119,6 +120,7 @@ defmodule Builder.Unify do
       Enum.map(params, &unify_type!(&1, env))
       |> Enum.map(&from_ok!/1)
       |> Enum.unzip()
+
     case Builder.match_args(param_types, unified_param_types, %{}) do
       :error ->
         expected_type = Macro.to_string(Enum.map(param_types, &Builder.type_to_ast/1))
@@ -141,9 +143,17 @@ defmodule Builder.Unify do
     end
   end
 
-  def on_function_capture(function, arity, env) do
-    DT.fun(param_types, return_type) = Map.fetch!(env.functions, {function, arity})
-    type = DT.fun(param_types, return_type)
-    Result.ok({type, env})
+  def on_function_capture(function, arity, meta, env) do
+    case Map.fetch(env.functions, {function, arity}) do
+      {:ok, DT.fun(param_types, return_type)} ->
+        type = DT.fun(param_types, return_type)
+        Result.ok({type, env})
+
+      :error ->
+        opts = Keyword.take(meta, [:line]) ++ [
+          description: "Could not find #{function}/#{arity} in env",
+        ]
+        Result.error({CompileError, opts})
+    end
   end
 end

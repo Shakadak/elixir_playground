@@ -1,6 +1,9 @@
 defmodule Builder do
   import  Circe
 
+  alias   Data.Result
+  require Result
+
   alias   DataTypes, as: DT
   require DT
 
@@ -112,11 +115,12 @@ defmodule Builder do
     case {src, tgt} do
       {type, type} -> {:ok, env}
       # If the type variable is already in the env, and is the same as the target type
-      {DT.variable(name), type} when :erlang.map_get(name, env) == type -> {:ok, env}
+      {DT.variable(name), type} when :erlang.map_get(name, env) == type -> Result.ok(env)
       # If the type variable is already in the env, but is different from the target type
-      {DT.variable(name), type} when :erlang.map_get(name, env) != type -> :error
+      {DT.variable(name), type} when :erlang.map_get(name, env) != type ->
+        Result.error({CompileError, description: "Expected #{Builder.type_to_string(env[name])} for variable #{name}, but instead got #{Builder.type_to_string(type)}"})
       # If the type variable is not in the env, we add it
-      {DT.variable(name), type} -> {:ok, Map.put(env, name, type)}
+      {DT.variable(name), type} -> Result.ok(Map.put(env, name, type))
       #{src, DT.alt(xs)} ->
       #  Stream.map(xs, fn tgt -> match_type(src, tgt, env) end)
       #  |> Enum.find(:error, &match?({:ok, _}, &1))
@@ -126,28 +130,30 @@ defmodule Builder do
         #    {:ok, _} = x -> {:halt, x}
         #  end
         #end)
+
       {DT.hkt(name, args), DT.hkt(name, args2)} ->
         Enum.zip(args, args2)
-        |> Enum.reduce({:ok, env}, fn
-          _, :error = x -> x
-          {src, tgt}, {:ok, env} -> match_type(src, tgt, env)
-        end)
+        |> Result.foldlM(env, fn {src, tgt}, env -> match_type(src, tgt, env) end)
+        #|> Enum.reduce(Result.ok(env), fn
+        #  _, Result.error(_) = x -> x
+        #  {src, tgt}, Result.ok(env) -> match_type(src, tgt, env)
+        #end)
+
       {DT.fun(params1, return1), DT.fun(params2, return2)} ->
-        case match_args(params1, params2, env) do
-          {:ok, env} -> match_type(return1, return2, env)
-          :error -> :error
-        end
+        match_args(params1, params2, env)
+        |> Result.bind(fn env -> match_type(return1, return2, env) end)
+
       {src, tgt} ->
         _ = IO.inspect(%{src: src, tgt: tgt, env: env}, label: "match_type")
-        :error
+        Result.error({CompileError, description: "Could not match type #{Builder.type_to_string(tgt)} with type #{Builder.type_to_string(src)}"})
     end
   end
 
-  def match_args([], [], env), do: {:ok, env}
+  def match_args([], [], env), do: Result.ok(env)
   def match_args([src | srcs], [tgt | tgts], env) do
     case match_type(src, tgt, env) do
-      {:ok, env} -> match_args(srcs, tgts, env)
-      :error -> :error
+      Result.ok(env) -> match_args(srcs, tgts, env)
+      Result.error(_) = err -> err
     end
   end
 
