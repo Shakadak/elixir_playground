@@ -1,8 +1,8 @@
 defmodule Builder.Unify do
-  import Circe
+  import  Circe
 
-  import  Data.Result
   alias   Data.Result
+  import  Result
 
   alias   DataTypes, as: DT
   require DT
@@ -39,10 +39,9 @@ defmodule Builder.Unify do
   end
 
   def on_2_tuple(l, r, env) do
-    require Monad
-    Monad.m Result do
-      {l_type, env} <- unify_type!(l, env)
-      {r_type, env} <- unify_type!(r, env)
+    Result.compute do
+      let! {l_type, env} = unify_type!(l, env)
+      let! {r_type, env} = unify_type!(r, env)
       pure {DT.hkt(:tuple, [l_type, r_type]), env}
     end
   end

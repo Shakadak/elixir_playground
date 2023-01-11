@@ -1,23 +1,20 @@
-defmodule Monad do
-  @doc """
-  require Monad
-  Monad.m MonadImplementation do
-    x = expression1
-    y <- monadic_expression2
-    MonadImplementation.pure(expression(x, y))
-  end
-  """
-  defmacro m(module, do: {:__block__, _context, body}) do
-    rec_mdo(module, body, __CALLER__)
-    #|> case do x -> IO.puts(Macro.to_string(x)) ; x end
+defmodule ComputationExpression do
+  defmacro __using__(opts) do
+    {debug?, []} = Keyword.pop(opts, :debug, false)
+    quote do
+      defmacro compute(do: {:__block__, _context, body}) do
+        unquote(__MODULE__).rec_mdo(__MODULE__, body, __CALLER__)
+        |> case do x -> if unquote(debug?) do IO.puts(Macro.to_string(x)) end ; x end
+      end
+    end
   end
 
-  def rec_mdo(_module, [{:<-, context, _}], caller) do
+  def rec_mdo(_module, [{:let!, context, _}], caller) do
     kind = CompileError
     opts = [
       file: caller.file,
       line: Keyword.get(context, :line, caller.line),
-      description: "End of do notation should be a monadic value",
+      description: "End of computation expression cannot be let!",
     ]
     raise kind, opts
   end
@@ -26,7 +23,7 @@ defmodule Monad do
     line
   end
 
-  def rec_mdo(module, [{:<-, _context, [binding, expression]} | tail], caller) do
+  def rec_mdo(module, [{:let!, _ctxt, [{:=, _ctxt2, [binding, expression]}]} | tail], caller) do
     quote location: :keep do
       unquote(expression)
       |> unquote(module).bind(fn unquote(binding) ->

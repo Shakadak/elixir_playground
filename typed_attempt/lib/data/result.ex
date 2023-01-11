@@ -1,4 +1,6 @@
 defmodule Data.Result do
+  use ComputationExpression, debug: false
+
   defmacro ok(x), do: {:ok, x}
   defmacro error(x), do: {:error, x}
 
@@ -20,10 +22,9 @@ defmodule Data.Result do
 
   def mapM(as, f) do
     k = fn a, r ->
-      require Monad
-      Monad.m __MODULE__ do
-        x <- f.(a)
-        xs <- r
+      compute do
+        let! x = f.(a)
+        let! xs = r
         pure [x | xs]
       end
     end
