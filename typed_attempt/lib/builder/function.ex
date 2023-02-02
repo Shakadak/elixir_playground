@@ -35,8 +35,13 @@ defmodule Builder.Function do
     arity = length(params)
 
     DT.fun(param_types, return_type) =
-      Map.fetch!(typing_env.functions, {function, arity})
-      |> rigidify_type
+      Map.fetch(typing_env.functions, {function, arity})
+      |> case do
+        {:ok, x} -> rigidify_type(x)
+        :error ->
+          opts = Map.take(caller, [:file, :line]) |> Map.to_list()
+          raise CompileError, opts ++ [description: "No type declaration found for #{function}/#{arity}"]
+      end
 
     params_typing_env = %{
       constructors: typing_env.constructors,
@@ -49,7 +54,7 @@ defmodule Builder.Function do
     body = extract_do_list(y)
 
     {last_expression_type, _env} =
-      Result.foldlM(body, {:void, typing_env}, fn expression, {_, typing_env} ->
+      Result.foldl_m(body, {:void, typing_env}, fn expression, {_, typing_env} ->
         Builder.Unify.unify_type!(expression, typing_env)
       end)
       |> case do
@@ -75,8 +80,8 @@ defmodule Builder.Function do
       end
 
     _ = case Builder.match_type(return_type, unified_type, %{}) do
-      {:ok, _env} -> :ok
-      :error ->
+      Result.ok(_env) -> :ok
+      Result.error({}) ->
         expected_type_string = Builder.expr_type_to_string({:_, [], nil}, return_type)
         unified_type_string = Builder.expr_type_to_string(List.last(body), unified_type)
         msg =

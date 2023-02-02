@@ -113,7 +113,7 @@ defmodule Builder do
 
   def match_type(src, tgt, env) do
     case {src, tgt} do
-      {type, type} -> {:ok, env}
+      {type, type} -> Result.ok(env)
       # If the type variable is already in the env, and is the same as the target type
       {DT.variable(name), type} when :erlang.map_get(name, env) == type -> Result.ok(env)
       # If the type variable is already in the env, but is different from the target type
@@ -133,7 +133,7 @@ defmodule Builder do
 
       {DT.hkt(name, args), DT.hkt(name, args2)} ->
         Enum.zip(args, args2)
-        |> Result.foldlM(env, fn {src, tgt}, env -> match_type(src, tgt, env) end)
+        |> Result.foldl_m(env, fn {src, tgt}, env -> match_type(src, tgt, env) end)
         #|> Enum.reduce(Result.ok(env), fn
         #  _, Result.error(_) = x -> x
         #  {src, tgt}, Result.ok(env) -> match_type(src, tgt, env)

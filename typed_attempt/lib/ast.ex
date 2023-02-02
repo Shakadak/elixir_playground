@@ -30,4 +30,11 @@ defmodule Ast do
       unquote(value),
     } end
   end
+
+  defmacro identifier(value) do
+    quote do {
+      :identifier,
+      unquote(value),
+    } end
+  end
 end

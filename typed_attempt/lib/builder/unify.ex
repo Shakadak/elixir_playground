@@ -2,19 +2,19 @@ defmodule Builder.Unify do
   import  Circe
 
   alias   Data.Result
-  import  Result
+  require  Result
 
   alias   DataTypes, as: DT
   require DT
 
   def unify_type!(expression, env) do
     case expression do
-      x when is_integer(x) -> ok({DT.type(:int), env})
-      x when is_float(x) -> ok({DT.type(:float), env})
-      x when is_atom(x) -> ok({DT.type(:atom), env})
-      x when is_binary(x) -> ok({DT.type(:binary), env})
-      x when is_boolean(x) -> ok({DT.type(:boolean), env})
-      [] -> ok({DT.hkt(:list, [DT.unknown()]), env})
+      x when is_integer(x) -> Result.ok({DT.type(:int), env})
+      x when is_float(x) -> Result.ok({DT.type(:float), env})
+      x when is_atom(x) -> Result.ok({DT.type(:atom), env})
+      x when is_binary(x) -> Result.ok({DT.type(:binary), env})
+      x when is_boolean(x) -> Result.ok({DT.type(:boolean), env})
+      [] -> Result.ok({DT.hkt(:list, [DT.unknown()]), env})
       {_name, meta, context} = var when is_atom(context) -> on_var(var, meta, env)
       {l, r} -> on_2_tuple(l, r, env)
       ~m/#{{_, _, c} = var} = #{expression}/ when is_atom(c) -> on_bind(var, expression, env)
@@ -28,12 +28,12 @@ defmodule Builder.Unify do
   def on_var(var, meta, env) do
     var2 = Macro.update_meta(var, &Keyword.delete(&1, :line))
     case Map.fetch(env.vars, var2) do
-      {:ok, type} -> ok(type)
+      {:ok, type} -> Result.ok(type)
       :error ->
         opts = Keyword.take(meta, [:line]) ++ [
           description: "Var: #{Macro.to_string(var)} (line #{Keyword.fetch!(meta, :line)}) has no previous binding."
         ]
-        error({CompileError, opts})
+        Result.error({CompileError, opts})
     end
     |> Result.map(fn type -> {type, env} end)
   end
@@ -42,7 +42,7 @@ defmodule Builder.Unify do
     Result.compute do
       let! {l_type, env} = unify_type!(l, env)
       let! {r_type, env} = unify_type!(r, env)
-      pure {DT.hkt(:tuple, [l_type, r_type]), env}
+      Result.pure {DT.hkt(:tuple, [l_type, r_type]), env}
     end
   end
 
@@ -56,23 +56,26 @@ defmodule Builder.Unify do
   end
 
   def on_cons(x, xs, meta, env) do
-    ok({head_type, env}) = unify_type!(x, env)
-    expected_type = DT.hkt(:list, [head_type])
+    Result.compute do
+      let! {head_type, env} = unify_type!(x, env)
+      expected_type = DT.hkt(:list, [head_type])
 
-    ok({unified_type, env}) = unify_type!(xs, env)
+      let! {unified_type, env} = unify_type!(xs, env)
 
-    case Builder.match_type(expected_type, unified_type, %{}) do
-      :error ->
-        expected_type_string = Builder.expr_type_to_string([{:|, [], [x, {:_, [], nil}]}], expected_type)
-        unified_type_string = Builder.expr_type_to_string(xs, unified_type)
-        opts = Keyword.take(meta, [:line]) ++ [
-          description: "Could not match expected #{expected_type_string} with actual #{unified_type_string}"
-        ]
-        error({CompileError, opts})
+      case Builder.match_type(expected_type, unified_type, %{}) do
+        Result.error({kind, opts}) ->
+          expected_type_string = Builder.expr_type_to_string([{:|, [], [x, {:_, [], nil}]}], expected_type)
+          unified_type_string = Builder.expr_type_to_string(xs, unified_type)
+          opts = Keyword.take(meta, [:line]) ++ [
+            description: "Could not match expected #{expected_type_string} with actual #{unified_type_string}"
+          ]
+          |> Keyword.merge(opts)
+          Result.error({kind, opts})
 
-      {:ok, _vars_env} ->
-        ok({expected_type, env})
-        end
+        Result.ok(_vars_env) ->
+          Result.ok({expected_type, env})
+      end
+    end
   end
 
   def on_function_call(name, params, meta, env) do
@@ -95,9 +98,9 @@ defmodule Builder.Unify do
           #  description: "Could not match expected type: #{expected_type} with actual type: #{unified_type}"
           #]
           opts = Keyword.merge(Keyword.take(meta, [:line]), opts)
-          error({kind, opts})
+          Result.error({kind, opts})
 
-        {:ok, vars_env} ->
+        Result.ok(vars_env) ->
           return_type = Builder.map_type_variables(return_type, fn var ->
             case Map.fetch(vars_env, var) do
               {:ok, x} -> x
@@ -105,7 +108,7 @@ defmodule Builder.Unify do
             end
           end)
           #|> IO.inspect(label: "#{name} :")
-          ok({return_type, env})
+          Result.ok({return_type, env})
       end
     end)
   end
@@ -113,33 +116,44 @@ defmodule Builder.Unify do
   def on_anonymous_call(function, params, ast, env) do
         #arity = length(params)
     var2 = Macro.update_meta(function, &Keyword.delete(&1, :line))
-    DT.fun(param_types, return_type) = Map.fetch!(env.vars, var2)
+    case Map.fetch!(env.vars, var2) do
+      DT.fun(_, _) = f -> Result.ok(f)
+      other ->
+        fs = Macro.to_string(function)
+        os = Builder.type_to_string(other)
+        line = Keyword.fetch!(elem(function, 1), :line)
 
-    {unified_param_types, _envs} =
-      Enum.map(params, &unify_type!(&1, env))
-      |> Enum.map(&from_ok!/1)
-      |> Enum.unzip()
-
-    case Builder.match_args(param_types, unified_param_types, %{}) do
-      :error ->
-        expected_type = Macro.to_string(Enum.map(param_types, &Builder.type_to_ast/1))
-        unified_type = Macro.to_string(Enum.map(unified_param_types, &Builder.type_to_ast/1))
-        {_, meta, _} = ast
-        opts = Keyword.take(meta, [:line]) ++ [
-          description: "Could not match expected type: #{expected_type} with actual type: #{unified_type}"
-        ]
-        error({CompileError, opts})
-
-      {:ok, vars_env} ->
-        return_type = Builder.map_type_variables(return_type, fn var ->
-          case Map.fetch(vars_env, var) do
-            {:ok, x} -> x
-            :error -> DT.variable(var)
-          end
-        end)
-        #|> IO.inspect(label: "#{Macro.to_string(function)} :")
-        Result.ok({return_type, env})
+        Result.error({CompileError, line: line, description: "Expected #{fs} to be a function, but instead got a value of type : #{os}"})
     end
+    |> Result.bind(fn DT.fun(param_types, return_type) ->
+
+      {unified_param_types, _envs} =
+        Enum.map(params, &unify_type!(&1, env))
+        |> Enum.map(&Result.from_ok!/1)
+        |> Enum.unzip()
+
+      case Builder.match_args(param_types, unified_param_types, %{}) do
+        Result.error({CompileError, opts}) ->
+          expected_type = Macro.to_string(Enum.map(param_types, &Builder.type_to_ast/1))
+          unified_type = Macro.to_string(Enum.map(unified_param_types, &Builder.type_to_ast/1))
+          {_, meta, _} = ast
+          opts = Keyword.take(meta, [:line]) ++ [
+            description: "Could not match expected type: #{expected_type} with actual type: #{unified_type}"
+          ]
+          |> Keyword.merge(opts)
+          Result.error({CompileError, opts})
+
+        Result.ok(vars_env) ->
+          return_type = Builder.map_type_variables(return_type, fn var ->
+            case Map.fetch(vars_env, var) do
+              {:ok, x} -> x
+              :error -> DT.variable(var)
+            end
+          end)
+        #|> IO.inspect(label: "#{Macro.to_string(function)} :")
+          Result.ok({return_type, env})
+      end
+    end)
   end
 
   def on_function_capture(function, arity, meta, env) do
