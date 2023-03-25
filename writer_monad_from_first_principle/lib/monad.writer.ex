@@ -40,25 +40,22 @@ defmodule Monad.Writer do
           new({mappend(log1, log2), f.(x)})
         end
 
-        def lift_a(mf, ma) do
-          {log1, f} = mf.run_writer
+        def lift_a(f, ma) do
           {log2, x} = ma.run_writer
-          new({mappend(log1, log2), f.(x)})
+          new({log2, f.(x)})
         end
 
-        def lift_a2(mf, ma, mb) do
-          {log1, f} = mf.run_writer
+        def lift_a2(f, ma, mb) do
           {log2, x} = ma.run_writer
           {log3, y} = mb.run_writer
-          new({mappend(log1, mappend(log2, log3)), f.(x, y)})
+          new({mappend(log2, log3), f.(x, y)})
         end
 
-        def lift_a3(mf, ma, mb, mc) do
-          {log1, f} = mf.run_writer
+        def lift_a3(f, ma, mb, mc) do
           {log2, x} = ma.run_writer
           {log3, y} = mb.run_writer
           {log4, z} = mc.run_writer
-          new({mappend(log1, mappend(log2, mappend(log3, log4))), f.(x, y, z)})
+          new({mappend(log2, mappend(log3, log4)), f.(x, y, z)})
         end
 
         def join(mma) do
