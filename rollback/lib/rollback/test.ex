@@ -490,9 +490,9 @@ defmodule Rollback.Test.Roadmap6 do
 
   def roadmap2 do
     compute do
-      _ <- log fn -> :failed end
-      _ <- test()
-      _ <- process_vm()
+      log fn -> :failed end
+      test()
+      process_vm()
       end_vm()
     end
   end
