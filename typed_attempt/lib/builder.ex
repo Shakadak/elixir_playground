@@ -133,7 +133,7 @@ defmodule Builder do
 
       {DT.hkt(name, args), DT.hkt(name, args2)} ->
         Enum.zip(args, args2)
-        |> Result.foldl_m(env, fn {src, tgt}, env -> match_type(src, tgt, env) end)
+        |> Result.reduceM(env, fn {src, tgt}, env -> match_type(src, tgt, env) end)
         #|> Enum.reduce(Result.ok(env), fn
         #  _, Result.error(_) = x -> x
         #  {src, tgt}, Result.ok(env) -> match_type(src, tgt, env)

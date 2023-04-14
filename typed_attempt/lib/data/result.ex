@@ -226,7 +226,7 @@ defmodule Data.Result do
       iex> sequence([ok(1), error(2), error(3)])
       error(2)
   """
-  def sequence(xs), do: map_m(xs, & &1)
+  def sequence(mxs), do: mapM(mxs, & &1)
 
   @doc """
   Maps a function returning a `Result` to a list of values and converts it
@@ -241,16 +241,32 @@ defmodule Data.Result do
       iex> [1, 2, 3] |> Data.Result.map_m(fn x when rem(x, 2) == 0 -> Data.Result.error(x) ; x -> Data.Result.pure(x) end)
       Data.Result.error(2)
   """
-  def map_m(as, f) do
-    k = fn a, r ->
-      f.(a) |> bind(fn x ->
-        r |> bind(fn xs ->
-          pure([x | xs])
-        end)
-      end)
-    end
+  #def map_m(as, f) do
+  #  k = fn a, acc ->
+  #    acc |> bind(fn xs ->
+  #      f.(a) |> bind(fn x ->
+  #        pure([x | xs])
+  #      end)
+  #    end)
+  #  end
 
-    List.foldr(as, pure([]), k)
+  #  List.foldr(as, pure([]), k)
+  #end
+
+  #def map_m(as, f) do
+  #  reducer = fn x, acc -> bind(f.(x), fn y -> pure([y | acc]) end) end
+
+  #  foldl_m(as, [], reducer)
+  #  |> map(&Enum.reverse/1)
+  #end
+
+  def mapM([], _), do: pure([])
+  def mapM([x | xs], f) do
+    compute do
+      let! y = f.(x)
+      let! ys = mapM(xs, f)
+      pure([y | ys])
+    end
   end
 
   @doc """
@@ -266,9 +282,12 @@ defmodule Data.Result do
       Data.Result.error(2)
   """
   # foldl_m :: (Monad m) => [a], b, (a, b -> m b) -> m b
-  def foldl_m(xs, z0, f) do
-    c = fn x, k -> fn acc -> f.(x, acc) |> bind(k) end end
-    List.foldr(xs, &pure/1, c).(z0)
+  #def foldl_m(xs, z0, f) do
+  #  c = fn x, k -> fn acc -> f.(x, acc) |> bind(k) end end
+  #  List.foldr(xs, &pure/1, c).(z0)
+  #end
+  def reduceM(xs, z0, f) do
+    Enum.reduce(xs, pure(z0), fn x, macc -> bind(macc, fn acc -> f.(x, acc) end) end)
   end
 end
 

@@ -54,7 +54,7 @@ defmodule Builder.Function do
     body = extract_do_list(y)
 
     {last_expression_type, _env} =
-      Result.foldl_m(body, {:void, typing_env}, fn expression, {_, typing_env} ->
+      Result.reduceM(body, {:void, typing_env}, fn expression, {_, typing_env} ->
         Builder.Unify.unify_type!(expression, typing_env)
       end)
       |> case do

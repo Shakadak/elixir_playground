@@ -19,6 +19,12 @@ defmodule ComputationExpression do
     raise kind, opts
   end
 
+  def rec_mdo(module, [{:pure, _, [expr]}], _) do
+    quote location: :keep do
+      unquote(module).pure(unquote(expr))
+    end
+  end
+
   def rec_mdo(_module, [line], _caller) do
     line
   end
