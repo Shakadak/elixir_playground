@@ -7,8 +7,11 @@ defmodule Ast.BaseParserTest do
 
   import  Ast.Core, only: [
     app: 2,
+    clause: 3,
     lam: 2,
+    let: 2,
     lit: 1,
+    non_rec: 2,
     var: 1,
   ]
   import  Ast.BaseParser, only: [
@@ -59,8 +62,8 @@ defmodule Ast.BaseParserTest do
     end
     ast = Ast.FromElixir.parse(ex_ast, expression(), [{Ast.BaseParser, :parse, []}])
     assert Result.ok(Ast.Core.case([var(:n)], [
-      Ast.Core.clause([lit(42)], [], lit(:ok)),
-      Ast.Core.clause([var(:_)], [], lit(:error))
+      clause([lit(42)], [], lit(:ok)),
+      clause([var(:_)], [], lit(:error))
     ])) = ast
   end
 
@@ -81,8 +84,8 @@ defmodule Ast.BaseParserTest do
     ast = Ast.FromElixir.parse(ex_ast, expression(), [{Ast.BaseParser, :parse, []}])
     assert Result.ok(lam([var(:arg@1)],
       Ast.Core.case([var(:arg@1)], [
-        Ast.Core.clause([lit(42)], [], lit(:ok)),
-        Ast.Core.clause([var(:_)], [], lit(:error)),
+        clause([lit(42)], [], lit(:ok)),
+        clause([var(:_)], [], lit(:error)),
       ])
     )) = ast
   end
@@ -101,5 +104,28 @@ defmodule Ast.BaseParserTest do
         Ast.Core.clause([var(:_), var(:base), var(:_)], [], var(:base)),
       ])
     )) = ast
+  end
+
+  test "parse if a > b do :greater else :not_greater end" do
+    ex_ast = quote do
+      if a > b do :greater else :not_greater end
+    end
+    ast = Ast.FromElixir.parse(ex_ast, expression(), [{Ast.BaseParser, :parse, []}])
+    assert Result.ok(
+      Ast.Core.case([], [
+        Ast.Core.clause([], [app(var(:>), [var(:a), var(:b)])], lit(:greater)),
+        Ast.Core.clause([], [lit(true)], lit(:not_greater)),
+      ])
+    ) = ast
+  end
+
+  test "parse i = id(a) ; i + a" do
+    ex_ast = quote do
+      i = id(a) ; i + a
+    end
+    ast = Ast.FromElixir.parse(ex_ast, expression(), [{Ast.BaseParser, :parse, []}])
+    assert Result.ok(
+      let(non_rec(var(:i), app(var(:id), [var(:a)])), app(var(:+), [var(:i), var(:a)]))
+    ) = ast
   end
 end

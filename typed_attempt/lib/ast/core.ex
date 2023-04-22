@@ -37,6 +37,22 @@ defmodule Ast.Core do
     } end
   end
 
+  defmacro rec(bind, expr) do
+    quote do {
+      :non_rec,
+      unquote(bind),
+      unquote(expr),
+    } end
+  end
+
+  defmacro non_rec(bind, expr) do
+    quote do {
+      :non_rec,
+      unquote(bind),
+      unquote(expr),
+    } end
+  end
+
   defmacro case(exprs, clauses) do
     quote do {
       :case,
