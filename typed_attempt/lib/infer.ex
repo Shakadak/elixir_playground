@@ -1,0 +1,2 @@
+defmodule Infer do
+end

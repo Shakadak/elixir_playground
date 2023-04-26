@@ -18,18 +18,32 @@ defmodule Ast.BaseParserTest do
     expression: 0,
   ]
 
+  test "parse 1" do
+    ex_ast = quote do 1 end
+    ast = Ast.FromElixir.parse(ex_ast, expression(), [{Ast.BaseParser, :parse, []}])
+
+    assert Result.ok(lit(1)) = ast
+  end
+
+  test "parse x" do
+    ex_ast = quote do x end
+    ast = Ast.FromElixir.parse(ex_ast, expression(), [{Ast.BaseParser, :parse, []}])
+
+    assert Result.ok(var(:x)) = ast
+  end
+
   test "parse 1 + 1" do
     ex_ast = quote do 1 + 1 end
     ast = Ast.FromElixir.parse(ex_ast, expression(), [{Ast.BaseParser, :parse, []}])
 
-    assert Result.ok(app(var(:+), [lit(1), lit(1)])) = ast
+    assert Result.ok(app(var({:+, 2}), [lit(1), lit(1)])) = ast
   end
 
   test "parse x + 1" do
     ex_ast = quote do x + 1 end
     ast = Ast.FromElixir.parse(ex_ast, expression(), [{Ast.BaseParser, :parse, []}])
 
-    assert Result.ok(app(var(:+), [var(:x), lit(1)])) = ast
+    assert Result.ok(app(var({:+, 2}), [var(:x), lit(1)])) = ast
   end
 
   test "parse x.(1)" do
@@ -50,7 +64,7 @@ defmodule Ast.BaseParserTest do
     ex_ast = quote do x + y + z end
     ast = Ast.FromElixir.parse(ex_ast, expression(), [{Ast.BaseParser, :parse, []}])
 
-    assert Result.ok(app(var(:+), [app(var(:+), [var(:x), var(:y)]), var(:z)])) = ast
+    assert Result.ok(app(var({:+, 2}), [app(var({:+, 2}), [var(:x), var(:y)]), var(:z)])) = ast
   end
 
   test "parse case n do 42 ..." do
@@ -100,7 +114,7 @@ defmodule Ast.BaseParserTest do
     ast = Ast.FromElixir.parse(ex_ast, expression(), [{Ast.BaseParser, :parse, []}])
     assert Result.ok(lam([var(:arg@1), var(:arg@2), var(:arg@3)],
       Ast.Core.case([var(:arg@1), var(:arg@2), var(:arg@3)], [
-        Ast.Core.clause([lit(:inc), var(:base), var(:n)], [], app(var(:+), [var(:base), var(:n)])),
+        Ast.Core.clause([lit(:inc), var(:base), var(:n)], [], app(var({:+, 2}), [var(:base), var(:n)])),
         Ast.Core.clause([var(:_), var(:base), var(:_)], [], var(:base)),
       ])
     )) = ast
@@ -113,7 +127,7 @@ defmodule Ast.BaseParserTest do
     ast = Ast.FromElixir.parse(ex_ast, expression(), [{Ast.BaseParser, :parse, []}])
     assert Result.ok(
       Ast.Core.case([], [
-        Ast.Core.clause([], [app(var(:>), [var(:a), var(:b)])], lit(:greater)),
+        Ast.Core.clause([], [app(var({:>, 2}), [var(:a), var(:b)])], lit(:greater)),
         Ast.Core.clause([], [lit(true)], lit(:not_greater)),
       ])
     ) = ast
@@ -125,7 +139,7 @@ defmodule Ast.BaseParserTest do
     end
     ast = Ast.FromElixir.parse(ex_ast, expression(), [{Ast.BaseParser, :parse, []}])
     assert Result.ok(
-      let(non_rec(var(:i), app(var(:id), [var(:a)])), app(var(:+), [var(:i), var(:a)]))
+      let(non_rec(var(:i), app(var({:id, 1}), [var(:a)])), app(var({:+, 2}), [var(:i), var(:a)]))
     ) = ast
   end
 end

@@ -71,16 +71,29 @@ defmodule Ast.BaseParser do
       {id, meta, ctxt} when is_atom(id) and is_list(meta) and is_atom(ctxt) ->
         Result.pure Ast.Core.var(id)
 
-      ~m/#{fun}.(#{...args})/ = {_, _meta, _} -> parse_application(fun, args, context, parsers)
-      ~m/#{fun}(#{...args})/ = {_, _meta, _} -> parse_application(fun, args, context, parsers)
+      ~m/#{fun}.(#{...args})/ = {_, _meta, _} -> parse_anon_application(fun, args, context, parsers)
+      ~m/#{fun}(#{...args})/ = {_, _meta, _} -> parse_named_application(fun, args, context, parsers)
     end
   end
 
-  def parse_application(fun, args, context, parsers) do
+  def parse_anon_application(fun, args, context, parsers) do
     Result.compute do
       let! fun_ast = Ast.FromElixir.parse(fun, function(), parsers)
       let! args_ast = Result.mapM(args, &Ast.FromElixir.parse(&1, context, parsers))
       Result.pure Ast.Core.app(fun_ast, args_ast)
+    end
+  end
+
+  def parse_named_application(fun, args, context, parsers) do
+    Result.compute do
+      let! fun_ast = Ast.FromElixir.parse(fun, function(), parsers)
+      let! args_ast = Result.mapM(args, &Ast.FromElixir.parse(&1, context, parsers))
+      n = length(args)
+      name_ast = case fun_ast do
+        Ast.Core.var({:., _, _} = x) -> Ast.Core.var({x, n})
+        Ast.Core.var(x) when is_atom(x) -> Ast.Core.var({x, n})
+      end
+      Result.pure Ast.Core.app(name_ast, args_ast)
     end
   end
 
