@@ -1,12 +1,8 @@
 defmodule ComputationExpression do
-  defmacro __using__(opts) do
+  defmacro compute(dict, opts \\ [], do: {:__block__, _context, body}) do
     {debug?, []} = Keyword.pop(opts, :debug, false)
-    quote do
-      defmacro compute(do: {:__block__, _context, body}) do
-        unquote(__MODULE__).rec_mdo(__MODULE__, body, __CALLER__)
-        |> case do x -> if unquote(debug?) do IO.puts(Macro.to_string(x)) end ; x end
-      end
-    end
+    rec_mdo(dict, body, __CALLER__)
+    |> case do x -> if debug? do IO.puts(Macro.to_string(x)) end ; x end
   end
 
   def rec_mdo(_module, [{:let!, context, _}], caller) do

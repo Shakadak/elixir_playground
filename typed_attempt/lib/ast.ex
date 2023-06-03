@@ -1,4 +1,7 @@
 defmodule Ast do
+  alias ComputationExpression, as: CE
+  require CE
+
   alias Data.Result
   require Result
 
@@ -36,21 +39,21 @@ defmodule Ast do
         end
 
       app(e, args) ->
-        Result.compute do
+        CE.compute Data.Result do
           let! e_t = fill_types(e, env)
           let! args_t = Result.mapM(args, &fill_types(&1, env))
           pure app_t(e_t, args_t, DT.unknown())
         end
 
       Ast.Core.case(exprs, clauses) ->
-        Result.compute do
+        CE.compute Data.Result do
           let! exprs_t = Result.mapM(exprs, &fill_types(&1, env))
           let! clauses_t = Result.mapM(clauses, &fill_types(&1, env))
           pure Ast.Core.Typed.case_t(exprs_t, clauses_t, DT.unknown())
         end
 
       clause(pats, guards, expr) ->
-        Result.compute do
+        CE.compute Data.Result do
           let! pats_t = Result.mapM(pats, &fill_types(&1, env))
           let! guards_t = Result.mapM(guards, &fill_types(&1, env))
           let! expr_t = fill_types(expr, env)

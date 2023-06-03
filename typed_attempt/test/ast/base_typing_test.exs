@@ -125,14 +125,16 @@ defmodule Ast.BaseTypingTest do
 
     atom = DT.type(:atom)
     int = DT.type(:integer)
+    default = DT.unknown()
     env = %{
       :n => int,
+      :_ => default,
     }
     typed_ast = Ast.fill_types(ast, env)
 
     assert Result.ok(Ast.Core.Typed.case_t([var_t(:n, ^int)], [
       clause_t([lit_t(42, ^int)], [], lit_t(:ok, ^atom), DT.unknown()),
-      clause_t([var_t(:_, DT.unknown())], [], lit_t(:error, ^atom), DT.unknown())
+      clause_t([var_t(:_, ^default)], [], lit_t(:error, ^atom), DT.unknown())
     ], DT.unknown())) = typed_ast
   end
 end

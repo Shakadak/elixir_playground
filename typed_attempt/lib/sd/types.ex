@@ -25,6 +25,20 @@ defmodule Scheme do
   defmacro forall(tvars, type), do: quote(do: %unquote(__MODULE__){@: {unquote(tvars), unquote(type)}})
 end
 
+defmodule Syntax do
+  @enforce_keys [:@]
+  defstruct [:@]
+
+  defmacro var(x), do: quote(do: %unquote(__MODULE__){@: {:var, unquote(x)}})
+  defmacro app(a1, a2), do: quote(do: %unquote(__MODULE__){@: {:app, {unquote(a1), unquote(a2)}}})
+  defmacro lam(a1, a2), do: quote(do: %unquote(__MODULE__){@: {:lam, {unquote(a1), unquote(a2)}}})
+  defmacro let(a1, a2, a3), do: quote(do: %unquote(__MODULE__){@: {:let, {unquote(a1), unquote(a2), unquote(a3)}}})
+  defmacro lit(x), do: quote(do: %unquote(__MODULE__){@: {:lit, unquote(x)}})
+  defmacro ifO(a1, a2, a3), do: quote(do: %unquote(__MODULE__){@: {:if, {unquote(a1), unquote(a2), unquote(a3)}}})
+  defmacro fix(x), do: quote(do: %unquote(__MODULE__){@: {:fix, unquote(x)}})
+  defmacro op(a1, a2, a3), do: quote(do: %unquote(__MODULE__){@: {:op, {unquote(a1), unquote(a2), unquote(a3)}}})
+end
+
 defmodule TypeEnv do
   @enforce_keys [:@]
   defstruct [:@]
@@ -45,13 +59,16 @@ defmodule Sd.Infer do
   alias Data.Result
   require Result
 
+  alias ComputationExpression, as: CE
+  require CE
+
   require TVar
   require Scheme
   require Type
+  require TypeEnv
+  require Syntax
 
   # s -> {s, result(e, a)}
-  use ComputationExpression, debug: false
-
   def pure(x), do: state(fn s -> {s, Result.pure(x)} end)
 
   def runInfer(m) do
@@ -92,7 +109,7 @@ defmodule Sd.Infer do
   end
 
   def fresh do
-    compute do
+    CE.compute __MODULE__ do
       let! s = get()
       put %{s | count: s.count + 1}
       pure Type.tvar(Enum.at(letters(), s.count))
@@ -104,7 +121,7 @@ defmodule Sd.Infer do
 
   # unify ::  Type -> Type -> Infer Subst
   def unify(l1 |> Type.tarr(r1), l2 |> Type.tarr(r2)) do
-    compute do
+    CE.compute __MODULE__ do
       let! s1 = unify(l1, l2)
       let! s2 = unify(Substitutable.apply(r1, s1), Substitutable.apply(r2, s1))
       pure s2 |> Subst.compose(s1)
@@ -128,7 +145,7 @@ defmodule Sd.Infer do
 
   # instantiate ::  Scheme -> Infer Type
   def instantiate(Scheme.forall(as, t)) do
-    compute do
+    CE.compute __MODULE__ do
       let! as2 = mapM(as, fn _ -> fresh() end)
       s = Map.new(Enum.zip(as, as2))
       pure Substitutable.apply(t, s)
@@ -139,6 +156,41 @@ defmodule Sd.Infer do
   def generalize(env, t) do
     as = MapSet.to_list(MapSet.difference(Substitutable.ftv(t), Substitutable.ftv(env)))
     Scheme.forall(as, t)
+  end
+
+  # lookupEnv :: TypeEnv -> Var -> Infer (Subst, Type)
+  def lookupEnv(TypeEnv.typeEnv(env), x) do
+    case Map.fetch(env, x) do
+      :error -> throwError({:unbound_variable, inspect(x)})
+      {:ok, s} ->
+        CE.compute __MODULE__ do
+          let! t = instantiate(s) 
+          pure {Subst.nullSubst(), t}
+        end
+    end
+  end
+
+  def infer(env, ex) do
+    case ex do
+      Syntax.var(x) -> lookupEnv(env, x)
+
+      Syntax.lam(x, e) ->
+        CE.compute __MODULE__ do
+          let! tv = fresh()
+          env2 = env |> TypeEnv.extend({x, Scheme.forall([], tv)})
+          let! {s1, t1} = infer(env2, e)
+          pure {s1, Substitutable.apply(tv, s1) |> Type.tarr(t1)}
+        end
+
+      Syntax.app(e1, e2) ->
+        CE.compute __MODULE__ do
+          let! tv = fresh()
+          let! {s1, t1} = infer(env, e1)
+          let! {s2, t2} = infer(Substitutable.apply(env, s1), e2)
+          let! s3       = unify(Substitutable.apply(t1, s2), Type.tarr(t2, tv))
+          pure {s3 |> Subst.compose(s2) |> Subst.compose(s1), Substitutable.apply(tv, s3)}
+        end
+    end
   end
 
   def evalState(m, s) do
@@ -176,7 +228,7 @@ defmodule Sd.Infer do
 
   def mapM([], _), do: pure([])
   def mapM([x | xs], f) do
-    compute do
+    CE.compute __MODULE__ do
       let! y = f.(x)
       let! ys = mapM(xs, f)
       pure([y | ys])

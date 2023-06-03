@@ -38,7 +38,8 @@ defmodule Data.Result do
     end
   end
 
-  use ComputationExpression, debug: false
+  alias ComputationExpression, as: CE
+  require CE
 
   @doc """
   Abstracts away the representation of the ok constructor.
@@ -262,7 +263,7 @@ defmodule Data.Result do
 
   def mapM([], _), do: pure([])
   def mapM([x | xs], f) do
-    compute do
+    CE.compute __MODULE__ do
       let! y = f.(x)
       let! ys = mapM(xs, f)
       pure([y | ys])

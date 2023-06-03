@@ -3,6 +3,9 @@ defmodule Ast.BaseParser do
 
   require Ast.Core
 
+  alias ComputationExpression, as: CE
+  require CE
+
   alias   Data.Result
   require Result
 
@@ -29,14 +32,14 @@ defmodule Ast.BaseParser do
         Result.pure Ast.Core.lit(x)
 
       ~m/case #{expr}, #{[do: clauses]}/ ->
-        Result.compute do
+        CE.compute Data.Result do
           let! expr_ast = Ast.FromElixir.parse(expr, context, parsers)
           let! clauses_ast = parse_clauses(clauses, context, parsers)
           pure Ast.Core.case([expr_ast], clauses_ast)
         end
 
       ~m/fn #{...pat_list} -> #{expr} end/ ->
-        Result.compute do
+        CE.compute Data.Result do
           let! pat_list_ast = Result.mapM(pat_list, &Ast.FromElixir.parse(&1, context, parsers))
           let! expr_ast = Ast.FromElixir.parse(expr, context, parsers)
           pure Ast.Core.lam(pat_list_ast, expr_ast)
@@ -45,13 +48,13 @@ defmodule Ast.BaseParser do
       {:fn, _, [~m/(#{...pat_list} -> #{_expr})/w | _] = clauses} ->
         #args = Enum.map(1..Enum.count(pat_list), fn n -> {:"arg@#{n}", [], __MODULE__} end)
         args = Enum.map(1..Enum.count(pat_list), fn n -> Ast.Core.var(:"arg@#{n}") end)
-        Result.compute do
+        CE.compute Data.Result do
           let! clauses_ast = parse_clauses(clauses, context, parsers)
           pure Ast.Core.lam(args, Ast.Core.case(args, clauses_ast))
         end
 
       ~m(if #{cdn} do #{on_true} else #{on_false} end) ->
-        Result.compute do
+        CE.compute Data.Result do
           let! cdn_ast = Ast.FromElixir.parse(cdn, context, parsers)
           let! on_true = Ast.FromElixir.parse(on_true, context, parsers)
           let! on_false = Ast.FromElixir.parse(on_false, context, parsers)
@@ -62,7 +65,7 @@ defmodule Ast.BaseParser do
         end
 
       ~m/#{pat} = #{expr}/ = {_, _meta, _} ->
-        Result.compute do
+        CE.compute Data.Result do
           let! pat_ast = Ast.FromElixir.parse(pat, context, parsers)
           let! expr_ast = Ast.FromElixir.parse(expr, context, parsers)
           Result.pure Ast.Core.non_rec(pat_ast, expr_ast)
@@ -77,7 +80,7 @@ defmodule Ast.BaseParser do
   end
 
   def parse_anon_application(fun, args, context, parsers) do
-    Result.compute do
+    CE.compute Data.Result do
       let! fun_ast = Ast.FromElixir.parse(fun, function(), parsers)
       let! args_ast = Result.mapM(args, &Ast.FromElixir.parse(&1, context, parsers))
       Result.pure Ast.Core.app(fun_ast, args_ast)
@@ -85,7 +88,7 @@ defmodule Ast.BaseParser do
   end
 
   def parse_named_application(fun, args, context, parsers) do
-    Result.compute do
+    CE.compute Data.Result do
       let! fun_ast = Ast.FromElixir.parse(fun, function(), parsers)
       let! args_ast = Result.mapM(args, &Ast.FromElixir.parse(&1, context, parsers))
       n = length(args)
@@ -99,7 +102,7 @@ defmodule Ast.BaseParser do
 
   def parse_clauses(clauses, context, parsers) do
     Result.mapM(clauses, fn ~m/(#{...pat_list} -> #{expr})/w ->
-      Result.compute do
+      CE.compute Data.Result do
         let! pat_list_ast = Result.mapM(pat_list, &Ast.FromElixir.parse(&1, context, parsers))
         let! expr_ast = Ast.FromElixir.parse(expr, context, parsers)
         pure Ast.Core.clause(pat_list_ast, [], expr_ast)
@@ -116,7 +119,7 @@ defmodule Ast.BaseParser do
   end
 
   def parse_block([expr | tail], context, parsers) do
-    Result.compute do
+    CE.compute Data.Result do
       let! expr_ast = Ast.FromElixir.parse(expr, context, parsers)
       let! tail_ast = parse_block(tail, context, parsers)
       pure(case expr_ast do

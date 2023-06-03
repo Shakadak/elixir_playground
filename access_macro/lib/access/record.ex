@@ -1,4 +1,4 @@
-defmodule Record.Access do
+defmodule Access.Record do
   @moduledoc false
 
   def access_helper({call, line, [arg]}) do
