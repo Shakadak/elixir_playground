@@ -5,11 +5,13 @@ defmodule Eq do
 end
 
 defmodule Eq.Bool do
-  def eq(true, true), do: true
-  def eq(false, false), do: true
-  def eq(_, _), do: false
+  def eq, do: fn
+    (true, true) -> true
+    (false, false) -> true
+    (_, _) -> false
+  end
 end
 
 defmodule Eq.Int do
-  def eq(x, y), do: x == y
+  def eq, do: fn (x, y) -> x == y end
 end

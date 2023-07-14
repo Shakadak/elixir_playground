@@ -8,12 +8,14 @@ defmodule Show do
 end
 
 defmodule Show.Bool do
-  def show(true), do: "True"
-  def show(false), do: "False"
+  def show, do: fn
+    (true) -> "True"
+    (false) -> "False"
+  end
 end
 
 defmodule Show.Int do
-  def show(x), do: Integer.to_string(x)
+  def show, do: fn (x) -> Integer.to_string(x) end
 end
 
 defmodule Show.List do

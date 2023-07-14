@@ -28,6 +28,6 @@ defmodule Mul.Bool do
 end
 
 defmodule Mul.Int do
-  def mul_super, do: {Eq.Int, Num.Int}
-  def mul(x, y), do: x *  y
+  def mul_super, do: fn -> {Eq.Int, Num.Int} end
+  def mul, do: fn (x, y) -> x *  y end
 end

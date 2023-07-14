@@ -9,14 +9,18 @@ defmodule Num do
 end
 
 defmodule Num.Int do
-  def from_int(x), do: x
-  def add(x, y), do: x + y
+  def from_int, do: fn (x) -> x end
+  def add, do: fn (x, y) -> x + y end
 end
 
 defmodule Num.Bool do
-  def from_int(0), do: false
-  def from_int(_), do: true
+  def from_int, do: fn
+    (0) -> false
+    (_) -> true
+  end
 
-  def add(true, _), do: true
-  def add(false, x), do: x
+  def add, do: fn
+    (true, _) -> true
+    (false, x) -> x
+  end
 end
