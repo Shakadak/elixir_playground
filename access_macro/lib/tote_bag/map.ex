@@ -33,13 +33,13 @@ defmodule Access.Map do
     zip = Enum.map(data, fn({k, v}) ->
       if p.(v) do
         {get, update} = next.(v)
-        {{:keep, get}, {k, update}}
+        {[get], {k, update}}
       else
-        {:skip, {k, v}}
+        {[], {k, v}}
       end
     end)
-    {get, update} = Enum.unzip(zip)
-    get = Enum.map(Enum.filter(get, &is_tuple/1), fn({_, v}) -> v end)
+    {gets, update} = Enum.unzip(zip)
+    get = Enum.concat(gets)
     update = Map.new(update)
     {get, update}
   end
@@ -71,18 +71,25 @@ defmodule Access.Map do
   end
 
   def kvs_filter(:get_and_update, data, next, p) do
-    zip =
-      Enum.map(data, fn(kv) ->
-        if p.(kv) do
-          {get, update} = next.(kv)
-          {{:keep, get}, update}
-        else
-          {:skip, kv}
-        end
-      end)
-    {get, update} = Enum.unzip(zip)
-    get = Enum.map(Enum.filter(get, &is_tuple/1), fn({:keep, x}) -> x end)
-    update = Map.new(update)
+    dezipper = fn kv ->
+      if p.(kv) do
+        {get, update} = next.(kv)
+        {[get], update}
+      else
+        {[], kv}
+      end
+    end
+
+    {gets, updates} = Enum.unzip(Enum.map(data, dezipper))
+    get = Enum.concat(gets)
+    update = Map.new(updates)
     {get, update}
   end
+
+  #def kv do
+  #  fn op, data, next ->
+  #    traverse(data, next)
+  #
+  #  end
+  #end
 end
