@@ -6,11 +6,33 @@ defmodule Traversal do
     traversal(fn x -> Tree.inorder(FunList, &FunList.single/1, x) end)
   end
 
+  # traverse : (Cocartesian p, Monoidal p) => p a b -> p (FunList a c t) (FunList b c t)
+  # traverse k = dimap out inn (right (par k (traverse k)))
+  # right : p a b -> p (c + a) (c + b)
+  # par : p a b -> p c d -> p {a, c} {b, d}
   def traverse(k, type) do
     dict = Profunctor.Lazy.mk(type)
     traverse_go(k, type, dict)
   end
 
+  # k : p a b
+  # traverse k : (Cocartesian p, Monoidal p) => p (FunList a c t) (FunList b c t)
+  # right : p a b -> p (c + a) (c + b)
+  # par : p a b -> p (FunList a c t) (FunList b c t) -> p {a, (FunList a c t)} {b, (FunList b c t)}
+  # \y -> par y (traverse k) : p a b -> p {a, (FunList a c t)} {b, (FunList b c t)}
+  # par k (traverse k) : p {a, (FunList a c t)} {b, (FunList b c t)}
+  # right (par k (traverse k)) : p (c + {a, (FunList a d t)}) (c + {b, (FunList b d t)})
+  #
+  # dimap : ((FunList a b t) -> (t + (a, FunList a b (b -> t)))) -> ((t + (a, FunList a b (b -> t))) -> (FunList a b t)) -> p a (t + (a, FunList a b (b -> t))) -> p (t + (a, FunList a b (b -> t))) (FunList a b t)
+  #
+  # dimap out inn : p a (t + (a, FunList a b (b -> t))) -> p (t + (a, FunList a b (b -> t))) (FunList a b t)
+  #
+  # dimap : ((a') -> (a)) -> ((b) -> (b')) -> p (a) (b) -> p (a') (b')
+  # out :: FunList a b t -> c + (a, FunList a b (b -> c))
+  # inn :: t + (a, FunList a b (b -> t)) -> FunList a b t
+  #
+  # dimap out : ((b) -> (b')) -> p (t + (a, FunList a b (b -> t))) (b) -> p (FunList a b t) (b')
+  # dimap out inn : p (t + (a, FunList a b (b -> t))) (t + (a', FunList a' b (b -> t))) -> p (FunList a b t) (FunList a b t)
   def traverse_go(k, type, dict) do
     import Lazy
 
@@ -18,12 +40,12 @@ defmodule Traversal do
     require Monoidal
     require Profunctor
 
-    f = &FunList.out/1
-    g = &FunList.inn/1
+    out = &FunList.out/1
+    inn = &FunList.inn/1
     suspension = 
-      delay(Cocartesian.right(Monoidal.par(k, traverse_go(k, type, dict), type), type))
+      delay(Cocartesian.right(Monoidal.par(k, fn x -> traverse_go(k, type, dict).(x) end, type), type))
 
-    Profunctor.dimap(f, g, suspension, dict)
+    Profunctor.dimap(out, inn, suspension, dict)
   end
 
   def traversalC2P(traversal(h), type) do

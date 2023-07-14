@@ -4,13 +4,13 @@ defmodule FunList do
 
   import Either
 
-  # out :: FunList a b t → t + (a, FunList a b (b → t))
+  # out :: FunList a b t -> t + (a, FunList a b (b -> t))
   # out (Done t) = Left t
   # out (More x l) = Right (x, l)
   def out(done(t)), do: left(t)
   def out(more(x, l)), do: right({x, l})
 
-  # inn :: t + (a, FunList a b (b → t)) → FunList a b t
+  # inn :: t + (a, FunList a b (b -> t)) -> FunList a b t
   # inn (Left t) = Done t
   # inn (Right (x, l)) = More x l
   def inn(left(t)), do: done(t)
@@ -27,7 +27,7 @@ defmodule Functor.FunList do
   import FunList
 
   def map(f, done(t)), do: done(f.(t))
-  def map(f, more(x, l)), do: more(x, map(curry(compose/3).(f), l))
+  def map(f, more(x, l)), do: more(x, map(curry(&compose(f, &1, &2), 2), l))
 
   def compose(f, g, x), do: f.(g.(x))
 end
@@ -44,5 +44,6 @@ defmodule Applicative.FunList do
   def ap(done(f), l_), do: Functor.FunList.map(f, l_)
   def ap(more(x, l), l_), do: more(x, Functor.FunList.map(curry(flip/3), l) |> ap(l_))
 
-  def flip(f, x, y), do: f.(y, x)
+  #def flip(f, x, y) when is_function(f, 2), do: f.(y, x)
+  def flip(f, x, y) when is_function(f, 1), do: f.(y).(x)
 end
