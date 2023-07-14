@@ -1,6 +1,6 @@
 defmodule DataTypes do
 
-  defmacro unknown do quote(do: :"$unknown") end
+  defmacro unknown do quote(do: :_?) end
   defmacro fun(params, return) do quote(do: {:fun, unquote(params), unquote(return)}) end
   defmacro hkt(name, params) do quote(do: {:hkt, unquote(name), unquote(params)}) end
   defmacro alt(types) do quote(do: {:alt, unquote(types)}) end

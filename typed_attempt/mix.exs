@@ -7,7 +7,8 @@ defmodule TypedAttempt.MixProject do
       version: "0.1.0",
       elixir: "~> 1.13",
       start_permanent: Mix.env() == :prod,
-      deps: deps()
+      deps: deps(),
+      elixirc_options: [warnings_as_errors: true],
     ]
   end
 
@@ -22,6 +23,7 @@ defmodule TypedAttempt.MixProject do
   defp deps do
     [
       {:circe, "~> 0.2"},
+      {:ex_doc, "~> 0.29", only: :dev, runtime: false},
     ]
   end
 end

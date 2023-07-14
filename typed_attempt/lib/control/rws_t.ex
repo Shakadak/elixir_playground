@@ -9,10 +9,17 @@ defmodule Control.RwsT do
   end
 
   defmacro mk(dict) do
+    require_ast =
+      if is_atom(Macro.expand_literals(dict, __CALLER__)) do
+        quote do require unquote(dict) end
+      end
+
     quote location: :keep do
 
       alias ComputationExpression, as: CE
       require CE
+
+      unquote(require_ast)
 
       @doc """
       Construct an RwsT computation from a function.
@@ -169,11 +176,11 @@ defmodule Control.RwsT do
       Execute a computation in a modified environment.
 
       ```
-      runRwsT(local(m, f), r, s) = runRwsT(m, f.(r), s)
+      runRwsT(local(f, m), r, s) = runRwsT(m, f.(r), s)
       ```
 
       ```
-      local :: RwsT r w s m a -> (r -> r) -> RwsT r w s m a
+      local :: (r -> r) -> RwsT r w s m a -> RwsT r w s m a
       ```
       """
       def local(f, m) do
@@ -309,6 +316,7 @@ defmodule Control.RwsT do
       end
 
       ### State operations  ------------------------------------------------------------------
+
       @doc """
       Construct a state monad computation from a state transformer function.
 
@@ -373,6 +381,17 @@ defmodule Control.RwsT do
       """
       def gets(f) do
         Control.RwsT.new fn _, s, w -> unquote(dict).pure({f.(s), s, w}) end
+      end
+
+      ### Generic operations -----------------------------------------------------------------
+
+      def mapM([], _), do: pure([])
+      def mapM([x | xs], f) do
+        CE.compute __MODULE__ do
+          let! y = f.(x)
+          let! ys = mapM(xs, f)
+          pure([y | ys])
+        end
       end
     end
   end
