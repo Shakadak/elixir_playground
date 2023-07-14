@@ -3,6 +3,7 @@ defmodule Ast.Core do
     quote do {
       :var,
       unquote(id),
+      :_?,
     } end
   end
 
@@ -10,6 +11,7 @@ defmodule Ast.Core do
     quote do {
       :lit,
       unquote(literal),
+      :_?,
     } end
   end
 
@@ -18,6 +20,7 @@ defmodule Ast.Core do
       :app,
       unquote(expr),
       unquote(args),
+      :_?,
     } end
   end
 
@@ -26,6 +29,7 @@ defmodule Ast.Core do
       :lam,
       unquote(args),
       unquote(expr),
+      :_?,
     } end
   end
 
@@ -34,6 +38,7 @@ defmodule Ast.Core do
       :let,
       unquote(bind),
       unquote(expr),
+      :_?,
     } end
   end
 
@@ -42,6 +47,7 @@ defmodule Ast.Core do
       :non_rec,
       unquote(bind),
       unquote(expr),
+      :_?,
     } end
   end
 
@@ -50,6 +56,7 @@ defmodule Ast.Core do
       :non_rec,
       unquote(bind),
       unquote(expr),
+      :_?,
     } end
   end
 
@@ -58,6 +65,7 @@ defmodule Ast.Core do
       :case,
       unquote(exprs),
       unquote(clauses),
+      :_?,
     } end
   end
 
@@ -67,6 +75,7 @@ defmodule Ast.Core do
       unquote(pats),
       unquote(guards),
       unquote(expr),
+      :_?,
     } end
   end
 end
