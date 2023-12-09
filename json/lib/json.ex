@@ -1,14 +1,7 @@
 defmodule Json do
-  #def deserialize(bin) do
-  #  case bin do
-  #    "null" -> nil
-  #    "true" -> "true"
-  #    "false" -> "false"
-  #    <<?", rest::binary>> -> parse
-  #  end
-  #end
-
   import Parser, only: [
+    parser!: 1,
+
     parsed: 2,
     failed: 0,
 
@@ -38,14 +31,14 @@ defmodule Json do
 
   def string(str) do
     str_size = byte_size(str)
-    _ = fn
+    parser! fn
       <<^str::binary-size(str_size), rest::binary>> -> parsed(rest, str)
       _ -> failed()
     end
   end
 
   def null do
-    _ = fn
+    parser! fn
       <<"null", rest::binary>> -> parsed(rest, nil)
       _ -> failed()
     end
@@ -56,7 +49,7 @@ defmodule Json do
   end
 
   def bool do
-    _ = fn
+    parser! fn
       <<"true", rest::binary>> -> parsed(rest, true)
       <<"false", rest::binary>> -> parsed(rest, false)
       _ -> failed()
@@ -102,6 +95,17 @@ defmodule Json do
         {:some, str} -> jStringb() |> Parser.map(&<<str::utf8, &1::binary>>)
       end
     end)
+
+    for(
+      optFirst <- Parser.optional(json_char()),
+      x <- case optFirst do
+        :none -> Parser.pure("")
+        {:some, str} -> jStringb() |> Parser.map(&<<str::utf8, &1::binary>>)
+      end,
+      into: Parser.zero()
+    ) do
+      x
+    end
   end
 
   def digits_to_number(base, zero, ds) do
@@ -113,8 +117,10 @@ defmodule Json do
       Parser.satisfy(& &1 in ?1..?9)
       |> Parser.map(&digit_to_int/1)
 
-    Parser.liftA2(&digits_to_number(10, 0, [&1 | &2]), digit19, digits())
+    p = Parser.liftA2(&digits_to_number(10, 0, [&1 | &2]), digit19, digits())
       ||| digit()
+
+    p |> dbg_("jUInt")
   end
 
   def digits, do: Parser.some(digit())
@@ -141,6 +147,7 @@ defmodule Json do
 
   def jIntExp do
     Parser.liftA2(&{&1, [], &2}, jIntb(), jExp())
+    |> dbg_("jIntExp")
   end
 
   def jIntFrac do
@@ -149,6 +156,7 @@ defmodule Json do
 
   def jIntFracExp do
     Parser.liftA3(&{&1, &2, &3}, jIntb(), jFrac(), jExp())
+    |> dbg_("jIntFracExp")
   end
 
   def jNumber do
@@ -161,6 +169,7 @@ defmodule Json do
       {n, frac, 0} -> String.to_float("#{n}.#{frac}")
       {n, frac, exp} -> String.to_float("#{n}.#{frac}e#{exp}")
     end)
+    |> dbg_("jNumber")
   end
 
   def spaces do
@@ -195,6 +204,7 @@ defmodule Json do
     key =
       jString()
       |> Parser.surrounded_by(spaces())
+      |> dbg_("key of jObject")
 
     and_value = char(?:) |> Parser.skip(Parser.delay!(jValue()))
 
@@ -212,7 +222,7 @@ defmodule Json do
   end
 
   def dbg_(parser, label) do
-    _ = fn input ->
+    parser! fn input ->
       _ = IO.inspect(input, label: "#{label} | input")
       Parser.run_parser(parser, input)
       |> IO.inspect(label: "#{label} | result")
