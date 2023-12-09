@@ -102,7 +102,7 @@ defmodule Parser do
 
   @doc "Zero or more"
   def many(parser) do
-    Json.dbg_(delay!(some(parser)) ||| pure([]), "many")
+    delay!(some(parser)) ||| pure([])
   end
 
   @doc """
