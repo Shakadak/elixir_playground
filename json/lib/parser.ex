@@ -111,7 +111,7 @@ defmodule Parser do
   delay(fn k -> k.(many(parser)) end)
   ```
   """
-  def delay(cont) do
+  def delay_(cont) do
     _ = fn input ->
       cont.(&run_parser(&1, input))
     end
@@ -187,7 +187,6 @@ defmodule Parser do
 
   def surrounded_by(pm, ps) do
     ps |> skip(pm) |> keep(ps)
-    |> Json.dbg_("surrounded_by")
   end
 
   def separated_by(v, s) do
