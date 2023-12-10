@@ -120,7 +120,7 @@ defmodule Parser do
   end
 
   def separated_by(v, s) do
-    p = 
+    p =
       for(
         h <- v,
         t <- many(for _ <- s, v <- v, into: zero(), do: v),
