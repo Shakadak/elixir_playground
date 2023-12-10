@@ -46,64 +46,6 @@ defmodule Parser do
 
   def pure(x), do: parser! fn i -> parsed(i, x) end
 
-  def ap(mf, mx) do
-    mf |> thenM(fn f ->
-      mx |> thenM(fn x ->
-        pure f.(x)
-      end)
-    end)
-  end
-
-  def ap2(mf, mx, my) do
-    for(
-      f <- mf,
-      x <- mx,
-      y <- my,
-      into: zero()
-    ) do
-      f.(x, y)
-    end
-  end
-
-  def ap3(mf, mx, my, mz) do
-    for(
-      f <- mf,
-      x <- mx,
-      y <- my,
-      z <- mz,
-      into: zero()
-    ) do
-      f.(x, y, z)
-    end
-  end
-
-  def liftA2(f, mx, my) do
-    for(
-      x <- mx,
-      y <- my,
-      into: zero()
-    ) do
-      f.(x, y)
-    end
-
-    # mx |> thenM(fn x ->
-    #   my |> thenM(fn y ->
-    #     pure f.(x, y)
-    #   end)
-    # end)
-  end
-
-  def liftA3(f, mx, my, mz) do
-    for(
-      x <- mx,
-      y <- my,
-      z <- mz,
-      into: zero()
-    ) do
-      f.(x, y, z)
-    end
-  end
-
   def thenM(parser, k) do
     parser! fn input ->
       run_parser(parser, input)
@@ -126,65 +68,18 @@ defmodule Parser do
 
   @doc "One or more"
   def some(parser) do
-    liftA2(&[&1 | &2], parser, delay!(many(parser)))
-    |> Json.dbg_("some")
+    for(
+      h <- parser,
+      t <- many(parser),
+      into: zero()
+    ) do
+      [h | t]
+    end
   end
 
   @doc "Zero or more"
   def many(parser) do
     delay!(some(parser)) ||| pure([])
-  end
-
-  @doc """
-  Functional version of the macro `delay!`, used as such
-  ```elixir
-  delay_(fn -> many(parser) end)
-  ```
-  """
-  def delay_(cont) do
-    parser! fn input ->
-      run_parser(cont.(), input)
-    end
-  end
-
-  @doc """
-  Runs both parser, but discard the result from the left.
-  """
-  def skip(l, r) do
-    # parser! fn input ->
-    #   case run_parser(l, input) do
-    #     parsed(i, _) -> run_parser(r, i)
-    #     failed() -> failed()
-    #   end
-    # end
-
-    for _ <- l, r <- r, into: zero(), do: r
-  end
-
-  @doc """
-  Runs both parser, but discard the result from the right.
-  """
-  def keep(l, r) do
-    parser! fn input ->
-      run_parser(l, input)
-      |> case do
-        parsed(i, o) -> run_parser(r |> as(o), i)
-        failed() -> failed()
-      end
-    end
-
-    for l <- l, _ <- r, into: zero(), do: l
-  end
-
-  def first_of(parsers) do
-    parser! fn input ->
-      Enum.reduce_while(parsers, failed(), fn parser, failed() ->
-        case run_parser(parser, input) do
-          parsed(_, _) = x -> {:halt, x}
-          failed() -> {:cont, failed()}
-        end
-      end)
-    end
   end
 
   def l ||| r do
@@ -214,7 +109,6 @@ defmodule Parser do
   end
 
   def surrounded_by(pm, ps) do
-    ps |> skip(pm) |> keep(ps)
     for(
       _ <- ps,
       v <- pm,
@@ -226,12 +120,19 @@ defmodule Parser do
   end
 
   def separated_by(v, s) do
-    liftA2(&[&1 | &2], v, many(skip(s, v)))
-      ||| pure([])
+    p = 
+      for(
+        h <- v,
+        t <- many(for _ <- s, v <- v, into: zero(), do: v),
+        into: zero()
+      ) do
+        [h | t]
+      end
+
+    p ||| pure([])
   end
 
   def bracket(l, m, r) do
-    l |> skip(m) |> keep(r)
     for(
       _ <- l,
       v <- m,
@@ -241,45 +142,13 @@ defmodule Parser do
       v
     end
   end
-
-  def inspect_fun(fun) do
-    fun_info = :erlang.fun_info(fun)
-    _ = IO.inspect(fun_info)
-    case Keyword.fetch!(fun_info, :type) do
-      :external -> IO.inspect(fun)
-      :local ->
-        case Keyword.fetch!(fun_info, :env) do
-          {:env, [{_, _, _, _, _, abs}]} ->
-            str = :erl_pp.expr({:fun, 1, {:clauses, abs}})
-            _ = IO.puts(str)
-            fun
-
-          [f] when is_function(f) ->
-            #inspect_fun(f)
-            #fun
-            IO.inspect(fun, label: "bad match in inspect_fun")
-
-          [] ->
-           IO.inspect(fun)
-
-          xs when is_list(xs) ->
-            IO.inspect(fun, label: "bad match in inspect_fun")
-        end
-    end
-    fun
-  end
-
 end
 
 defimpl Collectable, for: Parser do
   def into(%Parser{}) do
     collector = fn
-      _, :halt ->
-        raise "welp ¯\_(ツ)_/¯"
-
-      parser, :done ->
-        parser
-
+      _, :halt -> raise "welp ¯\_(ツ)_/¯"
+      parser, :done -> parser
       _p, {:cont, v} -> Parser.pure(v)
     end
 

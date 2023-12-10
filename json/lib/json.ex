@@ -29,7 +29,7 @@ defmodule Json do
 
   def digit_to_int(char), do: char - ?0
 
-  def string(str) do
+  def string(str) when is_binary(str) do
     str_size = byte_size(str)
     parser! fn
       <<^str::binary-size(str_size), rest::binary>> -> parsed(rest, str)
@@ -37,23 +37,8 @@ defmodule Json do
     end
   end
 
-  def null do
-    parser! fn
-      <<"null", rest::binary>> -> parsed(rest, nil)
-      _ -> failed()
-    end
-  end
-
   def jNull do
     string("null") |> as(nil)
-  end
-
-  def bool do
-    parser! fn
-      <<"true", rest::binary>> -> parsed(rest, true)
-      <<"false", rest::binary>> -> parsed(rest, false)
-      _ -> failed()
-    end
   end
 
   def jBool do
@@ -87,15 +72,6 @@ defmodule Json do
   end
 
   def jStringb do
-    Parser.optional(json_char())
-    |> Parser.thenM(fn optFirst ->
-      optFirst
-      |> case do
-        :none -> Parser.pure("")
-        {:some, str} -> jStringb() |> Parser.map(&<<str::utf8, &1::binary>>)
-      end
-    end)
-
     for(
       optFirst <- Parser.optional(json_char()),
       x <- case optFirst do
@@ -114,62 +90,71 @@ defmodule Json do
 
   def jUInt do
     digit19 =
-      Parser.satisfy(& &1 in ?1..?9)
-      |> Parser.map(&digit_to_int/1)
+      for d <- Parser.satisfy(& &1 in ?1..?9), into: Parser.zero(), do: digit_to_int(d)
 
-    p = Parser.liftA2(&digits_to_number(10, 0, [&1 | &2]), digit19, digits())
-      ||| digit()
+    num =
+      for(
+        lead <- digit19,
+        rest <- digits(),
+        into: Parser.zero()
+      ) do
+        digits_to_number(10, 0, [lead | rest])
+      end
 
-    p |> dbg_("jUInt")
+    num ||| digit()
+
   end
 
   def digits, do: Parser.some(digit())
 
   def jIntb do
-    Parser.liftA2(&signInt/2, Parser.optional(char(?-)), jUInt())
+    for(
+      maybe_sign <- Parser.optional(char(?-)),
+      uint <- jUInt(),
+      into: Parser.zero()
+    ) do
+      signInt(maybe_sign, uint)
+    end
   end
 
   def signInt({:some, ?-}, i), do: -i
   def signInt(_,      i),      do: i
 
-  def jFrac, do: char(?.) |> Parser.skip(digits()) |> Parser.map(&digits_to_number(10, 0, &1))
+  def jFrac do
+    for(
+      _ <- char(?.),
+      ds <- digits(),
+      into: Parser.zero()
+    ) do
+      digits_to_number(10, 0, ds)
+    end
+  end
 
   def jExp do
-    sign = Parser.optional(char(?+) ||| char(?-))
-
-    (char(?e) ||| char(?E))
-    |> Parser.skip(Parser.liftA2(&signInt/2, sign, jUInt()))
-  end
-
-  def jInt do 
-    jIntb() |> Parser.map(&{&1, [], 0})
-  end
-
-  def jIntExp do
-    Parser.liftA2(&{&1, [], &2}, jIntb(), jExp())
-    |> dbg_("jIntExp")
-  end
-
-  def jIntFrac do
-    Parser.liftA2(&{&1, &2, 0}, jIntb(), jFrac())
-  end
-
-  def jIntFracExp do
-    Parser.liftA3(&{&1, &2, &3}, jIntb(), jFrac(), jExp())
-    |> dbg_("jIntFracExp")
+    for(
+      _ <- char(?e) ||| char(?E),
+      maybe_sign <- Parser.optional(char(?+) ||| char(?-)),
+      uint <- jUInt(),
+      into: Parser.zero()
+    ) do
+      signInt(maybe_sign, uint)
+    end
   end
 
   def jNumber do
-    parser = jIntFracExp() ||| jIntFrac() ||| jIntExp() ||| jInt()
-
-    parser
-    |> Parser.map(fn 
-      {n, [], 0} -> n
-      {n, [], exp} -> n * 10 ** exp
-      {n, frac, 0} -> String.to_float("#{n}.#{frac}")
-      {n, frac, exp} -> String.to_float("#{n}.#{frac}e#{exp}")
-    end)
-    |> dbg_("jNumber")
+    for(
+      i <- jIntb(),
+      f <- jFrac() ||| Parser.pure([]),
+      e <- jExp() ||| Parser.pure(0),
+      into: Parser.zero()
+    ) do
+      case {i, f, e} do
+        {n, [], 0} -> n
+        {n, [], exp} -> n * 10 ** exp
+        {n, frac, 0} -> String.to_float("#{n}.#{frac}")
+        {n, frac, exp} -> String.to_float("#{n}.#{frac}e#{exp}")
+      end
+    end
   end
 
   def spaces do
@@ -177,14 +162,8 @@ defmodule Json do
   end
 
   def jArray do
-    value = 
-      Parser.delay!(jValue())
-      |> Parser.surrounded_by(spaces())
-
-    values =
-      value
-      |> Parser.separated_by(char(?,))
-
+    value = Parser.delay!(jValue()) |> Parser.surrounded_by(spaces())
+    values = value |> Parser.separated_by(char(?,))
     Parser.bracket(char(?[), values, char(?]))
   end
 
@@ -201,16 +180,15 @@ defmodule Json do
   end
 
   def jObject do
-    key =
-      jString()
-      |> Parser.surrounded_by(spaces())
-      |> dbg_("key of jObject")
-
-    and_value = char(?:) |> Parser.skip(Parser.delay!(jValue()))
-
     pair =
-      (&{&1, &2})
-      |> Parser.liftA2(key, and_value)
+      for(
+        key <- jString() |> Parser.surrounded_by(spaces()),
+        _ <- char(?:),
+        value <- jValue(),
+        into: Parser.zero()
+      ) do
+        {key, value}
+      end
 
     pairs =
       pair
