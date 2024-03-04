@@ -1,7 +1,7 @@
 defmodule Parser do
   @type parser(input, output) :: (input -> [{input, output}])
 
-  defstruct [parser: &__MODULE__.fail/1]
+  defstruct parser: &__MODULE__.fail/1
 
   defmacro parsed(i, o), do: {:some, {i, o}}
   defmacro failed, do: :none
@@ -11,7 +11,9 @@ defmodule Parser do
   end
 
   defp mk_parser_ast(ast) do
-    quote do %unquote(__MODULE__){parser: unquote(ast)} end
+    quote do
+      %unquote(__MODULE__){parser: unquote(ast)}
+    end
   end
 
   @doc false
@@ -32,38 +34,38 @@ defmodule Parser do
     parser.(input)
   end
 
-  def zero, do: parser! &fail/1
+  def zero, do: parser!(&fail/1)
 
   def map(parser, f) do
-    parser! fn input ->
+    parser!(fn input ->
       run_parser(parser, input)
       |> case do
         parsed(i, o) -> parsed(i, f.(o))
         failed() -> failed()
       end
-    end
+    end)
   end
 
-  def pure(x), do: parser! fn i -> parsed(i, x) end
+  def pure(x), do: parser!(fn i -> parsed(i, x) end)
 
   def thenM(parser, k) do
-    parser! fn input ->
+    parser!(fn input ->
       run_parser(parser, input)
       |> case do
         failed() -> failed()
         parsed(rest, out) -> run_parser(k.(out), rest)
       end
-    end
+    end)
   end
 
   def optional(parser) do
-    parser! fn input ->
+    parser!(fn input ->
       run_parser(parser, input)
       |> case do
         parsed(rest, out) -> parsed(rest, {:some, out})
         failed() -> parsed(input, :none)
       end
-    end
+    end)
   end
 
   @doc "One or more"
@@ -83,12 +85,12 @@ defmodule Parser do
   end
 
   def l ||| r do
-    parser! fn input ->
+    parser!(fn input ->
       case run_parser(l, input) do
         parsed(_, _) = x -> x
         failed() -> run_parser(r, input)
       end
-    end
+    end)
   end
 
   def as(parser, value) do
@@ -96,7 +98,7 @@ defmodule Parser do
   end
 
   def satisfy(p) do
-    parser! fn
+    parser!(fn
       <<c, rest::binary>> ->
         if p.(c) do
           parsed(rest, c)
@@ -104,8 +106,9 @@ defmodule Parser do
           failed()
         end
 
-      _ -> failed()
-    end
+      _ ->
+        failed()
+    end)
   end
 
   def surrounded_by(pm, ps) do
@@ -169,16 +172,18 @@ defimpl Enumerable, for: Parser do
     raise("#{inspect(__MODULE__)}.reduce(parser, {:halt, acc}, _fun)")
     {:halted, acc}
   end
+
   def reduce(parser!(_) = mp, {:suspend, acc}, fun) do
     raise("#{inspect(__MODULE__)}.reduce(parser, {:suspend, acc}, _fun)")
     {:suspended, acc, &reduce(mp, &1, fun)}
   end
 
   def reduce(parser!(_) = mp, {:cont, acc}, f) do
-    ret = Parser.thenM(mp, fn x ->
-      {:cont, v} = f.(x, acc)
-      v
-    end)
+    ret =
+      Parser.thenM(mp, fn x ->
+        {:cont, v} = f.(x, acc)
+        v
+      end)
 
     {:done, ret}
   end
