@@ -438,26 +438,26 @@ defmodule Rollback.Test.Roadmap6 do
 
   def pure(x), do: done([], x)
 
-  def ap(mf, mx) do
-    case mf do
-      done(rbsf, f) ->
-        mx
-        |> map(f)
-        |> cat_rbs(rbsf)
+  #def ap(mf, mx) do
+  #  case mf do
+  #    done(rbsf, f) ->
+  #      mx
+  #      |> map(f)
+  #      |> cat_rbs(rbsf)
 
-      aborted(rbs, reason) ->
-        aborted(get_rbs(mx) ++ rbs, reason)
-    end
-  end
+  #    aborted(rbs, reason) ->
+  #      aborted(get_rbs(mx) ++ rbs, reason)
+  #  end
+  #end
 
-  def lift_a2(f, mx, my) do
-    case {mx, my} do
-      {done(rbsx, x), done(rbsy, y)} -> done(rbsy ++ rbsx, f.(x, y))
-      {done(rbsx, _), aborted(rbsy, reason)} -> aborted(rbsy ++ rbsx, reason)
-      {aborted(rbsx, reason), done(rbsy, _)} -> aborted(rbsy ++ rbsx, reason)
-      {aborted(rbsx, reason), aborted(rbsy, _)} -> aborted(rbsy ++ rbsx, reason)
-    end
-  end
+  #def lift_a2(f, mx, my) do
+  #  case {mx, my} do
+  #    {done(rbsx, x), done(rbsy, y)} -> done(rbsy ++ rbsx, f.(x, y))
+  #    {done(rbsx, _), aborted(rbsy, reason)} -> aborted(rbsy ++ rbsx, reason)
+  #    {aborted(rbsx, reason), done(rbsy, _)} -> aborted(rbsy ++ rbsx, reason)
+  #    {aborted(rbsx, reason), aborted(rbsy, _)} -> aborted(rbsy ++ rbsx, reason)
+  #  end
+  #end
 
   def then_rb(mx, f) do
     case mx do
@@ -470,7 +470,7 @@ defmodule Rollback.Test.Roadmap6 do
 
   def tell(rbs), do: done(rbs, {})
 
-  def log(rb), do: tell([rb])
+  def rb(rb), do: tell([rb])
 
   def run_rollback(x) do
     case x do
@@ -482,15 +482,336 @@ defmodule Rollback.Test.Roadmap6 do
   end
 
   def roadmap do
-    mk_done({}, fn -> :failed end)
-    |> then_rb(fn _ -> test() end)
-    |> then_rb(fn _ -> process_vm() end)
-    |> then_rb(fn _ -> end_vm() end)
+    compute do
+      rb fn -> :failed end
+      test()
+      process_vm()
+      end_vm()
+    end
+  end
+end
+
+defmodule Rollback.Test.Roadmap7 do
+  defmacro compute(do: {:__block__, _context, body}) do
+    rec_mdo(body)
   end
 
-  def roadmap2 do
+  def rec_mdo([{:<-, context, _}]) do
+    raise "Error line #{Keyword.get(context, :line, :unknown)}: end of monadic do should be a monadic value"
+  end
+
+  def rec_mdo([line]) do
+    line
+  end
+
+  def rec_mdo([{:<-, _context, [binding, expression]} | tail]) do
+    quote do
+      unquote(expression)
+      |> unquote(__MODULE__).bind(fn unquote(binding) ->
+        unquote(rec_mdo(tail))
+      end)
+    end
+  end
+
+  def rec_mdo([{:=, _context, [_binding, _expression]} = line | tail]) do
+    quote do
+      unquote(line)
+      unquote(rec_mdo(tail))
+    end
+  end
+
+  def rec_mdo([expression | tail]) do
+    quote do
+      unquote(expression)
+      |> unquote(__MODULE__).bind(fn _ ->
+        unquote(rec_mdo(tail))
+      end)
+    end
+  end
+
+  defmacro done(rbs, x), do: {rbs, {:done, x}}
+  defmacro aborted(rbs, reason), do: {rbs, {:aborted, reason}}
+
+  def test do
+    script = fn ->
+      IO.puts("HOLEY test")
+      Process.sleep(500)
+      {}
+    end
+    rollback = fn ->
+        IO.puts("Reverse test")
+        Process.sleep(500)
+      end
+    on_error = fn _, _ -> "smthg" end
+    attempt(script, rollback, on_error)
+  end
+
+  def process_vm do
+    script = fn ->
+      IO.puts("HOLEY process_vm")
+      Process.sleep(500)
+      {}
+    end
+    rollback = fn ->
+      IO.puts("Reverse process_vm")
+      Process.sleep(500)
+    end
+    on_error = fn _, _ -> "smthg" end
+    attempt(script, rollback, on_error)
+  end
+
+  def end_vm do
+    script = fn ->
+      raise "Error in end_vm :'("
+      Process.sleep(500)
+      :finished
+    end
+    rollback = fn ->
+      IO.puts("Reverse end_vm")
+      Process.sleep(500)
+    end
+    on_error = fn _, _ -> "smthg" end
+    attempt(script, rollback, on_error)
+  end
+
+  def abort(reason), do: aborted([], reason)
+
+  def mk_done(x, rb), do: done([rb], x)
+
+  def attempt(script, rollback, on_error) do
+    try do
+      script.()
+      |> mk_done(rollback)
+    catch
+      kind, data -> abort(on_error.(kind, data))
+    end
+  end
+
+  def update_rbs({rbs, x}, f), do: {f.(rbs), x}
+  def put_rbs(x, rbs), do: update_rbs(x, fn _ -> rbs end)
+  def get_rbs({rbs, _}), do: rbs
+
+  def cat_rbs(dn, rcs), do: update_rbs(dn, & &1 ++ rcs)
+
+  def map(mx, f) do
+    case mx do
+      done(rbs, x)-> done(rbs, f.(x))
+      aborted(_, _) = x -> x
+    end
+  end
+
+  def pure(x), do: done([], x)
+
+  #def ap(mf, mx) do
+  #  case mf do
+  #    done(rbsf, f) ->
+  #      mx
+  #      |> map(f)
+  #      |> cat_rbs(rbsf)
+
+  #    aborted(rbs, reason) ->
+  #      aborted(get_rbs(mx) ++ rbs, reason)
+  #  end
+  #end
+
+  #def lift_a2(f, mx, my) do
+  #  case {mx, my} do
+  #    {done(rbsx, x), done(rbsy, y)} -> done(rbsy ++ rbsx, f.(x, y))
+  #    {done(rbsx, _), aborted(rbsy, reason)} -> aborted(rbsy ++ rbsx, reason)
+  #    {aborted(rbsx, reason), done(rbsy, _)} -> aborted(rbsy ++ rbsx, reason)
+  #    {aborted(rbsx, reason), aborted(rbsy, _)} -> aborted(rbsy ++ rbsx, reason)
+  #  end
+  #end
+
+  def then_rb(mx, f) do
+    case mx do
+      done(rbs, x) -> f.(x) |> cat_rbs(rbs)
+      aborted(_, _) = x -> x
+    end
+  end
+
+  def bind(mx, f), do: then_rb(mx, f)
+
+  def tell(rbs), do: done(rbs, {})
+
+  def rb(rb), do: tell([rb])
+
+  def run_rollback(x) do
+    case x do
+      done(_, x) -> {:ok, x}
+      aborted(rbs, reason) ->
+        y = Enum.reduce(rbs, {}, fn rb, _ -> rb.() end)
+        {:error, {y, reason}}
+    end
+  end
+
+  def roadmap do
     compute do
-      log fn -> :failed end
+      rb fn -> :failed end
+      test()
+      process_vm()
+      end_vm()
+    end
+  end
+end
+
+defmodule Rollback.Test.Roadmap8 do
+  defmacro compute(do: {:__block__, _context, body}) do
+    rec_mdo(body)
+  end
+
+  def rec_mdo([{:<-, context, _}]) do
+    raise "Error line #{Keyword.get(context, :line, :unknown)}: end of monadic do should be a monadic value"
+  end
+
+  def rec_mdo([line]) do
+    line
+  end
+
+  def rec_mdo([{:<-, _context, [binding, expression]} | tail]) do
+    quote do
+      unquote(expression)
+      |> unquote(__MODULE__).bind(fn unquote(binding) ->
+        unquote(rec_mdo(tail))
+      end)
+    end
+  end
+
+  def rec_mdo([{:=, _context, [_binding, _expression]} = line | tail]) do
+    quote do
+      unquote(line)
+      unquote(rec_mdo(tail))
+    end
+  end
+
+  def rec_mdo([expression | tail]) do
+    quote do
+      unquote(expression)
+      |> unquote(__MODULE__).bind(fn _ ->
+        unquote(rec_mdo(tail))
+      end)
+    end
+  end
+
+  defmacro done(rbs, x), do: {rbs, {:done, x}}
+  defmacro aborted(rbs, reason), do: {rbs, {:aborted, reason}}
+
+  def test do
+    script = fn ->
+      IO.puts("HOLEY test")
+      Process.sleep(500)
+      {}
+    end
+    rollback = fn ->
+        IO.puts("Reverse test")
+        Process.sleep(500)
+      end
+    on_error = fn _, _ -> "smthg" end
+    attempt(script, rollback, on_error)
+  end
+
+  def process_vm do
+    script = fn ->
+      IO.puts("HOLEY process_vm")
+      Process.sleep(500)
+      {}
+    end
+    rollback = fn ->
+      IO.puts("Reverse process_vm")
+      Process.sleep(500)
+    end
+    on_error = fn _, _ -> "smthg" end
+    attempt(script, rollback, on_error)
+  end
+
+  def end_vm do
+    script = fn ->
+      raise "Error in end_vm :'("
+      Process.sleep(500)
+      :finished
+    end
+    rollback = fn ->
+      IO.puts("Reverse end_vm")
+      Process.sleep(500)
+    end
+    on_error = fn _, _ -> "smthg" end
+    attempt(script, rollback, on_error)
+  end
+
+  def abort(reason), do: aborted([], reason)
+
+  def mk_done(x, rb), do: done([rb], x)
+
+  def attempt(script, rollback, on_error) do
+    try do
+      script.()
+      |> mk_done(rollback)
+    catch
+      kind, data -> abort(on_error.(kind, data))
+    end
+  end
+
+  def update_rbs({rbs, x}, f), do: {f.(rbs), x}
+  def put_rbs(x, rbs), do: update_rbs(x, fn _ -> rbs end)
+  def get_rbs({rbs, _}), do: rbs
+
+  def cat_rbs(dn, rcs), do: update_rbs(dn, & &1 ++ rcs)
+
+  def map(mx, f) do
+    case mx do
+      done(rbs, x)-> done(rbs, f.(x))
+      aborted(_, _) = x -> x
+    end
+  end
+
+  def pure(x), do: done([], x)
+
+  #def ap(mf, mx) do
+  #  case mf do
+  #    done(rbsf, f) ->
+  #      mx
+  #      |> map(f)
+  #      |> cat_rbs(rbsf)
+
+  #    aborted(rbs, reason) ->
+  #      aborted(get_rbs(mx) ++ rbs, reason)
+  #  end
+  #end
+
+  #def lift_a2(f, mx, my) do
+  #  case {mx, my} do
+  #    {done(rbsx, x), done(rbsy, y)} -> done(rbsy ++ rbsx, f.(x, y))
+  #    {done(rbsx, _), aborted(rbsy, reason)} -> aborted(rbsy ++ rbsx, reason)
+  #    {aborted(rbsx, reason), done(rbsy, _)} -> aborted(rbsy ++ rbsx, reason)
+  #    {aborted(rbsx, reason), aborted(rbsy, _)} -> aborted(rbsy ++ rbsx, reason)
+  #  end
+  #end
+
+  def then_rb(mx, f) do
+    case mx do
+      done(rbs, x) -> f.(x) |> cat_rbs(rbs)
+      aborted(_, _) = x -> x
+    end
+  end
+
+  def bind(mx, f), do: then_rb(mx, f)
+
+  def tell(rbs), do: done(rbs, {})
+
+  def rb(rb), do: tell([rb])
+
+  def run_rollback(x) do
+    case x do
+      done(_, x) -> {:ok, x}
+      aborted(rbs, reason) ->
+        y = Enum.reduce(rbs, {}, fn rb, _ -> rb.() end)
+        {:error, {y, reason}}
+    end
+  end
+
+  def roadmap do
+    compute do
+      rb fn -> :failed end
       test()
       process_vm()
       end_vm()
