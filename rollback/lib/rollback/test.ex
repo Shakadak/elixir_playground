@@ -3,16 +3,20 @@ defmodule Rollback.Test.Roadmap1 do
     IO.puts("HOLEY test")
     Process.sleep(500)
   end
+
   def process_vm do
     IO.puts("HOLEY process_vm")
     Process.sleep(500)
   end
+
   def end_vm do
     raise "Error in end_vm :'("
   end
+
   def reverse_test do
     IO.puts("Reverse test")
   end
+
   def reverse_process_vm do
     IO.puts("Reverse process_vm")
   end
@@ -20,8 +24,10 @@ defmodule Rollback.Test.Roadmap1 do
   def roadmap do
     try do
       test()
+
       try do
         process_vm()
+
         try do
           end_vm()
         catch
@@ -48,9 +54,11 @@ defmodule Rollback.Test.Roadmap2 do
       IO.puts("HOLEY test")
       Process.sleep(500)
     end
+
     rollback = fn ->
       IO.puts("Reverse test")
     end
+
     {run, rollback}
   end
 
@@ -58,11 +66,12 @@ defmodule Rollback.Test.Roadmap2 do
     run = fn ->
       IO.puts("HOLEY process_vm")
       Process.sleep(500)
-
     end
+
     rollback = fn ->
       IO.puts("Reverse process_vm")
     end
+
     {run, rollback}
   end
 
@@ -70,27 +79,32 @@ defmodule Rollback.Test.Roadmap2 do
     run = fn ->
       raise "Error in end_vm :'("
     end
+
     rollback = fn ->
       IO.puts("Reverse end_vm")
     end
+
     {run, rollback}
   end
 
   def roadmap do
     rollback = [fn -> :failed end]
     {run_test, rollback_test} = test()
+
     try do
       rollback = [rollback_test] ++ rollback
 
       run_test.()
 
       {run_process_vm, rollback_process_vm} = process_vm()
+
       try do
         rollback = [rollback_process_vm] ++ rollback
 
         run_process_vm.()
 
         {run_end_vm, rollback_end_vm} = end_vm()
+
         try do
           rollback = [rollback_end_vm] ++ rollback
           _ = rollback
@@ -115,6 +129,7 @@ defmodule Rollback.Test.Roadmap3 do
   def test do
     IO.puts("HOLEY test")
     Process.sleep(500)
+
     mk_done({}, fn ->
       IO.puts("Reverse test")
       Process.sleep(500)
@@ -124,6 +139,7 @@ defmodule Rollback.Test.Roadmap3 do
   def process_vm do
     IO.puts("HOLEY process_vm")
     Process.sleep(500)
+
     mk_done({}, fn ->
       IO.puts("Reverse process_vm")
       Process.sleep(500)
@@ -133,6 +149,7 @@ defmodule Rollback.Test.Roadmap3 do
   def end_vm do
     raise "Error in end_vm :'("
     Process.sleep(500)
+
     mk_done({}, fn ->
       IO.puts("Reverse end_vm")
       Process.sleep(500)
@@ -145,7 +162,7 @@ defmodule Rollback.Test.Roadmap3 do
 
   def update_rbs({:done, rbs, x}, f), do: {:done, f.(rbs), x}
 
-  def cat_rb(dn, rcs), do: update_rbs(dn, & &1 ++ rcs)
+  def cat_rb(dn, rcs), do: update_rbs(dn, &(&1 ++ rcs))
 
   def roadmap do
     rollback_init = [fn -> :failed end]
@@ -167,7 +184,9 @@ defmodule Rollback.Test.Roadmap3 do
     |> then.(fn rbs, _ -> something.(rbs, &process_vm/0) end)
     |> then.(fn rbs, _ -> something.(rbs, &end_vm/0) end)
     |> case do
-      {:done, _, x} -> {:ok, x}
+      {:done, _, x} ->
+        {:ok, x}
+
       {:aborted, rbs} ->
         y = Enum.reduce(rbs, {}, fn rb, _ -> rb.() end)
         {:error, y}
@@ -180,6 +199,7 @@ defmodule Rollback.Test.Roadmap4 do
     try do
       IO.puts("HOLEY test")
       Process.sleep(500)
+
       {}
       |> mk_done(fn ->
         IO.puts("Reverse test")
@@ -194,6 +214,7 @@ defmodule Rollback.Test.Roadmap4 do
     try do
       IO.puts("HOLEY process_vm")
       Process.sleep(500)
+
       {}
       |> mk_done(fn ->
         IO.puts("Reverse process_vm")
@@ -208,6 +229,7 @@ defmodule Rollback.Test.Roadmap4 do
     try do
       raise "Error in end_vm :'("
       Process.sleep(500)
+
       {}
       |> mk_done(fn ->
         IO.puts("Reverse end_vm")
@@ -225,7 +247,7 @@ defmodule Rollback.Test.Roadmap4 do
   def update_rbs({:done, {rbs, x}}, f), do: {:done, {f.(rbs), x}}
   def update_rbs({:aborted, rbs}, f), do: {:aborted, f.(rbs)}
 
-  def cat_rbs(dn, rcs), do: update_rbs(dn, & &1 ++ rcs)
+  def cat_rbs(dn, rcs), do: update_rbs(dn, &(&1 ++ rcs))
 
   def then(x, f) do
     case x do
@@ -236,7 +258,9 @@ defmodule Rollback.Test.Roadmap4 do
 
   def run_rollback(x) do
     case x do
-      {:done, _, x} -> {:ok, x}
+      {:done, _, x} ->
+        {:ok, x}
+
       {:aborted, rbs} ->
         y = Enum.reduce(rbs, {}, fn rb, _ -> rb.() end)
         {:error, y}
@@ -245,16 +269,21 @@ defmodule Rollback.Test.Roadmap4 do
 
   def roadmap do
     rbs_last = [fn -> :failed end]
+
     case test() do
       {:done, {rbs1, _x}} ->
         case process_vm() do
           {:done, {rbs2, _x}} ->
             end_vm()
             |> cat_rbs(rbs2)
-          {:aborted, _} = x -> x
+
+          {:aborted, _} = x ->
+            x
         end
         |> cat_rbs(rbs1)
-      {:aborted, _} = x -> x
+
+      {:aborted, _} = x ->
+        x
     end
     |> cat_rbs(rbs_last)
   end
@@ -265,6 +294,7 @@ defmodule Rollback.Test.Roadmap5 do
     try do
       IO.puts("HOLEY test")
       Process.sleep(500)
+
       {}
       |> mk_done(fn ->
         IO.puts("Reverse test")
@@ -279,6 +309,7 @@ defmodule Rollback.Test.Roadmap5 do
     try do
       IO.puts("HOLEY process_vm")
       Process.sleep(500)
+
       {}
       |> mk_done(fn ->
         IO.puts("Reverse process_vm")
@@ -293,6 +324,7 @@ defmodule Rollback.Test.Roadmap5 do
     try do
       raise "Error in end_vm :'("
       Process.sleep(500)
+
       :finished
       |> mk_done(fn ->
         IO.puts("Reverse end_vm")
@@ -310,7 +342,7 @@ defmodule Rollback.Test.Roadmap5 do
   def update_rbs({:done, {rbs, x}}, f), do: {:done, {f.(rbs), x}}
   def update_rbs({:aborted, rbs}, f), do: {:aborted, f.(rbs)}
 
-  def cat_rbs(dn, rcs), do: update_rbs(dn, & &1 ++ rcs)
+  def cat_rbs(dn, rcs), do: update_rbs(dn, &(&1 ++ rcs))
 
   def then_rb(x, f) do
     case x do
@@ -321,7 +353,9 @@ defmodule Rollback.Test.Roadmap5 do
 
   def run_rollback(x) do
     case x do
-      {:done, {_, x}} -> {:ok, x}
+      {:done, {_, x}} ->
+        {:ok, x}
+
       {:aborted, rbs} ->
         y = Enum.reduce(rbs, {}, fn rb, _ -> rb.() end)
         {:error, y}
@@ -381,6 +415,7 @@ defmodule Rollback.Test.Roadmap6 do
     try do
       IO.puts("HOLEY test")
       Process.sleep(500)
+
       {}
       |> mk_done(fn ->
         IO.puts("Reverse test")
@@ -395,6 +430,7 @@ defmodule Rollback.Test.Roadmap6 do
     try do
       IO.puts("HOLEY process_vm")
       Process.sleep(500)
+
       {}
       |> mk_done(fn ->
         IO.puts("Reverse process_vm")
@@ -409,6 +445,7 @@ defmodule Rollback.Test.Roadmap6 do
     try do
       raise "Error in end_vm :'("
       Process.sleep(500)
+
       :finished
       |> mk_done(fn ->
         IO.puts("Reverse end_vm")
@@ -427,37 +464,16 @@ defmodule Rollback.Test.Roadmap6 do
   def put_rbs(x, rbs), do: update_rbs(x, fn _ -> rbs end)
   def get_rbs({rbs, _}), do: rbs
 
-  def cat_rbs(dn, rcs), do: update_rbs(dn, & &1 ++ rcs)
+  def cat_rbs(dn, rcs), do: update_rbs(dn, &(&1 ++ rcs))
 
   def map(mx, f) do
     case mx do
-      done(rbs, x)-> done(rbs, f.(x))
+      done(rbs, x) -> done(rbs, f.(x))
       aborted(_, _) = x -> x
     end
   end
 
   def pure(x), do: done([], x)
-
-  #def ap(mf, mx) do
-  #  case mf do
-  #    done(rbsf, f) ->
-  #      mx
-  #      |> map(f)
-  #      |> cat_rbs(rbsf)
-
-  #    aborted(rbs, reason) ->
-  #      aborted(get_rbs(mx) ++ rbs, reason)
-  #  end
-  #end
-
-  #def lift_a2(f, mx, my) do
-  #  case {mx, my} do
-  #    {done(rbsx, x), done(rbsy, y)} -> done(rbsy ++ rbsx, f.(x, y))
-  #    {done(rbsx, _), aborted(rbsy, reason)} -> aborted(rbsy ++ rbsx, reason)
-  #    {aborted(rbsx, reason), done(rbsy, _)} -> aborted(rbsy ++ rbsx, reason)
-  #    {aborted(rbsx, reason), aborted(rbsy, _)} -> aborted(rbsy ++ rbsx, reason)
-  #  end
-  #end
 
   def then_rb(mx, f) do
     case mx do
@@ -474,7 +490,9 @@ defmodule Rollback.Test.Roadmap6 do
 
   def run_rollback(x) do
     case x do
-      done(_, x) -> {:ok, x}
+      done(_, x) ->
+        {:ok, x}
+
       aborted(rbs, reason) ->
         y = Enum.reduce(rbs, {}, fn rb, _ -> rb.() end)
         {:error, {y, reason}}
@@ -538,10 +556,12 @@ defmodule Rollback.Test.Roadmap7 do
       Process.sleep(500)
       {}
     end
+
     rollback = fn ->
-        IO.puts("Reverse test")
-        Process.sleep(500)
-      end
+      IO.puts("Reverse test")
+      Process.sleep(500)
+    end
+
     on_error = fn _, _ -> "smthg" end
     attempt(script, rollback, on_error)
   end
@@ -552,10 +572,12 @@ defmodule Rollback.Test.Roadmap7 do
       Process.sleep(500)
       {}
     end
+
     rollback = fn ->
       IO.puts("Reverse process_vm")
       Process.sleep(500)
     end
+
     on_error = fn _, _ -> "smthg" end
     attempt(script, rollback, on_error)
   end
@@ -566,10 +588,12 @@ defmodule Rollback.Test.Roadmap7 do
       Process.sleep(500)
       :finished
     end
+
     rollback = fn ->
       IO.puts("Reverse end_vm")
       Process.sleep(500)
     end
+
     on_error = fn _, _ -> "smthg" end
     attempt(script, rollback, on_error)
   end
@@ -595,33 +619,12 @@ defmodule Rollback.Test.Roadmap7 do
 
   def map(mx, f) do
     case mx do
-      done(rbs, x)-> done(rbs, f.(x))
+      done(rbs, x) -> done(rbs, f.(x))
       aborted(_, _) = x -> x
     end
   end
 
   def pure(x), do: done([], x)
-
-  #def ap(mf, mx) do
-  #  case mf do
-  #    done(rbsf, f) ->
-  #      mx
-  #      |> map(f)
-  #      |> cat_rbs(rbsf)
-
-  #    aborted(rbs, reason) ->
-  #      aborted(get_rbs(mx) ++ rbs, reason)
-  #  end
-  #end
-
-  #def lift_a2(f, mx, my) do
-  #  case {mx, my} do
-  #    {done(rbsx, x), done(rbsy, y)} -> done(rbsy ++ rbsx, f.(x, y))
-  #    {done(rbsx, _), aborted(rbsy, reason)} -> aborted(rbsy ++ rbsx, reason)
-  #    {aborted(rbsx, reason), done(rbsy, _)} -> aborted(rbsy ++ rbsx, reason)
-  #    {aborted(rbsx, reason), aborted(rbsy, _)} -> aborted(rbsy ++ rbsx, reason)
-  #  end
-  #end
 
   def then_rb(mx, f) do
     case mx do
@@ -702,10 +705,12 @@ defmodule Rollback.Test.Roadmap8 do
       Process.sleep(500)
       {}
     end
+
     rollback = fn ->
-        IO.puts("Reverse test")
-        Process.sleep(500)
-      end
+      IO.puts("Reverse test")
+      Process.sleep(500)
+    end
+
     on_error = fn _, _ -> "smthg" end
     attempt(script, rollback, on_error)
   end
@@ -716,10 +721,12 @@ defmodule Rollback.Test.Roadmap8 do
       Process.sleep(500)
       {}
     end
+
     rollback = fn ->
       IO.puts("Reverse process_vm")
       Process.sleep(500)
     end
+
     on_error = fn _, _ -> "smthg" end
     attempt(script, rollback, on_error)
   end
@@ -730,10 +737,12 @@ defmodule Rollback.Test.Roadmap8 do
       Process.sleep(500)
       :finished
     end
+
     rollback = fn ->
       IO.puts("Reverse end_vm")
       Process.sleep(500)
     end
+
     on_error = fn _, _ -> "smthg" end
     attempt(script, rollback, on_error)
   end
@@ -765,27 +774,6 @@ defmodule Rollback.Test.Roadmap8 do
   end
 
   def pure(x), do: done([], x)
-
-  #def ap(mf, mx) do
-  #  case mf do
-  #    done(rbsf, f) ->
-  #      mx
-  #      |> map(f)
-  #      |> cat_rbs(rbsf)
-
-  #    aborted(rbs, reason) ->
-  #      aborted(get_rbs(mx) ++ rbs, reason)
-  #  end
-  #end
-
-  #def lift_a2(f, mx, my) do
-  #  case {mx, my} do
-  #    {done(rbsx, x), done(rbsy, y)} -> done(rbsy ++ rbsx, f.(x, y))
-  #    {done(rbsx, _), aborted(rbsy, reason)} -> aborted(rbsy ++ rbsx, reason)
-  #    {aborted(rbsx, reason), done(rbsy, _)} -> aborted(rbsy ++ rbsx, reason)
-  #    {aborted(rbsx, reason), aborted(rbsy, _)} -> aborted(rbsy ++ rbsx, reason)
-  #  end
-  #end
 
   def then_rb(mx, f) do
     case mx do

@@ -3,9 +3,12 @@ defmodule Ast.BaseTypingTest do
 
   alias Data.Result
   require Result
+  import Result
 
   alias   DataTypes, as: DT
   require DT
+
+  import Ast
 
   import  Ast.Core, only: [
     app: 2,
@@ -27,15 +30,14 @@ defmodule Ast.BaseTypingTest do
     var_t: 2,
   ]
 
-  test "type 1" do
+  test "check 1 = integer" do
     ast = lit(1)
     env = %{}
-    typed_ast = Ast.fill_types(ast, env)
 
-    assert Result.ok(lit_t(1, DT.type(:integer))) = typed_ast
+    assert ok({}) = Ast.check(ast, env, DT.type(:integer))
   end
 
-  test "type 1 + 1" do
+  test "check 1 + 1 = integer" do
     ast = app(var({:+, 2}), [lit(1), lit(1)])
 
     int = DT.type(:integer)
@@ -43,12 +45,11 @@ defmodule Ast.BaseTypingTest do
     env = %{
       {:+, 2} => plus,
     }
-    typed_ast = Ast.fill_types(ast, env)
 
-    assert Result.ok(app_t(var_t({:+, 2}, ^plus), [lit_t(1, ^int), lit_t(1, ^int)], DT.unknown())) = typed_ast
+    assert ok({}) = Ast.check(ast, env, int)
   end
 
-  test "type x + 1, x missing" do
+  test "check x + 1 = unknown, when x missing" do
     ast = app(var({:+, 2}), [var(:x), lit(1)])
 
     int = DT.type(:integer)
@@ -56,12 +57,11 @@ defmodule Ast.BaseTypingTest do
     env = %{
       {:+, 2} => plus,
     }
-    typed_ast = Ast.fill_types(ast, env)
 
-    assert Result.error({:not_in_scope, :x}) = typed_ast
+    assert error(unknown_type()) = Ast.check(ast, env, int)
   end
 
-  test "type x + 1" do
+  test "check x + 1 = integer when x = integer" do
     ast = app(var({:+, 2}), [var(:x), lit(1)])
 
     int = DT.type(:integer)
@@ -70,12 +70,11 @@ defmodule Ast.BaseTypingTest do
       {:+, 2} => plus,
       :x => int,
     }
-    typed_ast = Ast.fill_types(ast, env)
 
-    assert Result.ok(app_t(var_t({:+, 2}, ^plus), [var_t(:x, ^int), lit_t(1, ^int)], DT.unknown())) = typed_ast
+    assert ok({}) = Ast.check(ast, env, int)
   end
 
-  test "type x.(1)" do
+  test "check x.(1) = integer when x = integer -> integer" do
     ast = app(var(:x), [lit(1)])
 
     int = DT.type(:integer)
@@ -83,12 +82,11 @@ defmodule Ast.BaseTypingTest do
     env = %{
       :x => fun,
     }
-    typed_ast = Ast.fill_types(ast, env)
 
-    assert Result.ok(app_t(var_t(:x, ^fun), [lit_t(1, ^int)], DT.unknown())) = typed_ast
+    assert ok({}) = Ast.check(ast, env, int)
   end
 
-  test "type x.(x)" do
+  test "check x.(x) = a -> a when x = a -> a" do
     ast = app(var(:x), [var(:x)])
 
     a = DT.variable(:a)
@@ -96,9 +94,8 @@ defmodule Ast.BaseTypingTest do
     env = %{
       :x => fun,
     }
-    typed_ast = Ast.fill_types(ast, env)
 
-    assert Result.ok(app_t(var_t(:x, ^fun), [var_t(:x, ^fun)], DT.unknown())) = typed_ast
+    assert ok({}) = Ast.check(ast, env, fun)
   end
 
   test "type x + y + z" do

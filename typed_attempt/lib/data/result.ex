@@ -21,22 +21,7 @@ defmodule Data.Result do
       Data.Result.error(2)
   """
 
-  @type t :: %__MODULE__{}
-
-  def __struct__ do
-    %{
-      __struct__: __MODULE__,
-      ok: nil,
-      error: nil,
-    }
-  end
-
-  def __struct__(kv) do
-    case kv do
-      [ok: x] -> %{__struct__: __MODULE__, ok: x}
-      [error: x] -> %{__struct__: __MODULE__, error: x}
-    end
-  end
+  @type t(error, ok) :: {:error, error} | {:ok, ok}
 
   alias ComputationExpression, as: CE
   require CE
@@ -44,12 +29,12 @@ defmodule Data.Result do
   @doc """
   Abstracts away the representation of the ok constructor.
   """
-  defmacro ok(x), do: quote(do: %unquote(__MODULE__){ok: unquote(x)})
+  defmacro ok(x), do: quote(do: {:ok, unquote(x)})
 
   @doc """
   Abstracts away the representation of the error constructor.
   """
-  defmacro error(x), do: quote(do: %unquote(__MODULE__){error: unquote(x)})
+  defmacro error(x), do: quote(do: {:error, unquote(x)})
 
   @doc """
   Converts a simple ok / error 2-tuple into a `Result.t`
@@ -242,31 +227,26 @@ defmodule Data.Result do
       iex> [1, 2, 3] |> Data.Result.map_m(fn x when rem(x, 2) == 0 -> Data.Result.error(x) ; x -> Data.Result.pure(x) end)
       Data.Result.error(2)
   """
-  #def map_m(as, f) do
-  #  k = fn a, acc ->
-  #    acc |> bind(fn xs ->
-  #      f.(a) |> bind(fn x ->
-  #        pure([x | xs])
-  #      end)
-  #    end)
-  #  end
-
-  #  List.foldr(as, pure([]), k)
-  #end
-
-  #def map_m(as, f) do
-  #  reducer = fn x, acc -> bind(f.(x), fn y -> pure([y | acc]) end) end
-
-  #  foldl_m(as, [], reducer)
-  #  |> map(&Enum.reverse/1)
-  #end
-
   def mapM([], _), do: pure([])
   def mapM([x | xs], f) do
     CE.compute __MODULE__ do
       let! y = f.(x)
       let! ys = mapM(xs, f)
-      pure([y | ys])
+      pure [y | ys]
+    end
+  end
+
+  @doc """
+  Zip two lists together within the Result workflow. Meaning that
+  if one of the zip fails, the whole zipping will fail.
+  """
+  def zipWithM([], _, _), do: pure([])
+  def zipWithM(_, [], _), do: pure([])
+  def zipWithM([x | xs], [y | ys], f) do
+    CE.compute __MODULE__ do
+      let! z = f.(x, y)
+      let! zs = zipWithM(xs, ys, f)
+      pure [z | zs]
     end
   end
 
@@ -289,87 +269,5 @@ defmodule Data.Result do
   #end
   def reduceM(xs, z0, f) do
     Enum.reduce(xs, pure(z0), fn x, macc -> bind(macc, fn acc -> f.(x, acc) end) end)
-  end
-end
-
-defimpl Inspect, for: Data.Result do
-  alias Data.Result
-  require Result
-
-  def inspect(Result.ok(x), opts), do: Inspect.Algebra.concat(["Data.Result.ok(", Inspect.Algebra.to_doc(x, opts), ")"])
-  def inspect(Result.error(x), opts), do: Inspect.Algebra.concat(["Data.Result.error(", Inspect.Algebra.to_doc(x, opts), ")"])
-end
-
-defimpl Enumerable, for: Data.Result do
-  alias Data.Result
-  require Result
-
-  def reduce(_r, {:halt, acc} = _cc, _f) do
-    #_ = IO.puts("init #{inspect(__MODULE__)}.reduce(#{inspect(r)}, #{inspect(cc)}, #{inspect(f)})")
-    {:halted, acc}
-  end
-
-  #def reduce(r, {:suspend, acc} = cc, f) do
-  #  _ = IO.puts("init #{inspect(__MODULE__)}.reduce(#{inspect(r)}, #{inspect(cc)}, #{inspect(f)})")
-  #  {:suspended, acc, &IO.inspect(&1, label: "direct suspension restarted")}
-  #end
-
-  #def reduce(r, {:cont, acc} = cc, f) do
-  #  _ = IO.puts("bind #{inspect(__MODULE__)}.reduce(#{inspect(r)}, #{inspect(cc)}, #{inspect(f)})")
-  #  r |> Data.Result.bind(fn x ->
-  #  case f.(x, acc) do
-  #    {:halt, y} -> {:halted, y}
-  #    {:cont, y} -> {:done, y}
-  #    {:suspend, y} -> {:suspended, y, &IO.inspect(&1, label: "suspension restarted")}
-  #  end
-  #  end)
-  #end
-
-  def reduce(Result.ok(x) = _r, {:cont, acc} = _cc, f) do
-    #_ = IO.puts("init #{inspect(__MODULE__)}.reduce(#{inspect(r)}, #{inspect(cc)}, #{inspect(f)})")
-    case f.(x, acc) do
-      {:halt, y} -> {:halted, y}
-      {:cont, y} -> {:done, y}
-      {:suspend, y} -> {:suspended, y, &IO.inspect(&1, label: "suspension restarted")}
-    end
-  end
-
-  def reduce(Result.error(_) = r, {:cont, _acc} = _cc, _f) do
-    #_ = IO.puts("init #{inspect(__MODULE__)}.reduce(#{inspect(r)}, #{inspect(cc)}, #{inspect(f)})")
-    {:halt, r}
-  end
-
-  def count(Result.error(_)), do: {:ok, 0}
-  def count(Result.ok(_)), do: {:ok, 1}
-
-  def member?(Result.error(_), _), do: {:ok, false}
-  def member?(Result.ok(x), y), do: {:ok, x === y}
-
-  def slice(_), do: {:error, __MODULE__}
-end
-
-defimpl Collectable, for: Data.Result do
-  alias Data.Result
-  require Result
-
-  def into(Result.error(_)) do
-    raise ArgumentError, "Cannot use Result.error(_) with Enum.into/2,3"
-  end
-
-  def into(Result.ok(_) = x) do
-    collector_fun = fn
-      acc, {:cont, elem} ->
-        Result.map(acc, fn _ -> elem end)
-
-      acc, :done ->
-        acc
-
-      _map_set_acc, :halt ->
-        :ok
-    end
-
-    initial_acc = x
-
-    {initial_acc, collector_fun}
   end
 end

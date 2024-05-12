@@ -55,11 +55,6 @@ defmodule Test.Basic do
 
   type byte_size, -: (binary() -> int())
 
-  type len_b, V: [a], -: ((list(a) | binary()) -> int())
-  #type len_b, V: [a], -: (int() | binary() -> int())
-  deft len_b(xs) when is_list(xs), do: len(xs)
-  deft len_b(bin) when is_binary(bin), do: byte_size(bin)
-
   type fst, V: [a, b], -: (tuple(a, b) -> a)
   type snd, V: [a, b], -: (tuple(a, b) -> b)
 

@@ -20,17 +20,8 @@ defmodule Infer.Guard do
     end
   end
 
-  def merge_constraint(l, r) do
-    case {l, r} do
-      {DT.alt(ts1), DT.alt(ts2)} -> DT.alt(ts1 ++ ts2)
-      {DT.alt(ts1), t} -> DT.alt(ts1 ++ [t])
-      {t, DT.alt(ts2)} -> DT.alt([t] ++ ts2)
-      {t1, t2} -> DT.alt([t1, t2])
-    end
-  end
-
   def merge_guards_constraints(constraintss) do
-    Enum.reduce(constraintss, %{}, &Map.merge(&1, &2, fn _k, l, r -> merge_constraint(l, r) end))
+    Enum.reduce(constraintss, %{}, &Map.merge(&1, &2, fn k, l, r -> raise("unexpected guard conflict: k = #{inspect(k)}, l = #{inspect(l)}, r = #{inspect(r)}") end))
   end
 
   def constraints(guards) do

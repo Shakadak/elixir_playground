@@ -1,7 +1,6 @@
 defmodule Access.Map do
   @doc """
   Access values of a map.
-  This does not implement the handling of pop.
   """
   def vs, do: &vs/3
 
@@ -12,11 +11,13 @@ defmodule Access.Map do
   def vs(:get_and_update, data, next) do
     zip =
       Enum.map(data, fn({k, v}) ->
-        {get, update} = next.(v)
-        {get, {k, update}}
+        case next.(v) do
+          {get, update} -> {get, [{k, update}]}
+          :pop -> {v, []}
+        end
       end)
     {get, update} = Enum.unzip(zip)
-    {get, Map.new(update)}
+    {get, Map.new(Enum.concat(update))}
   end
 
   @doc """
@@ -32,21 +33,22 @@ defmodule Access.Map do
   def vs_filter(:get_and_update, data, next, p) do
     zip = Enum.map(data, fn({k, v}) ->
       if p.(v) do
-        {get, update} = next.(v)
-        {[get], {k, update}}
+        case next.(v) do
+          {get, update} -> {[get], [{k, update}]}
+          :pop -> {[v], []}
+        end
       else
-        {[], {k, v}}
+        {[], [{k, v}]}
       end
     end)
     {gets, update} = Enum.unzip(zip)
     get = Enum.concat(gets)
-    update = Map.new(update)
+    update = Map.new(Enum.concat(update))
     {get, update}
   end
 
   @doc """
   Access key-value pairs of a map.
-  This does not implement the handling of pop.
   """
   def kvs, do: &kvs/3
 
@@ -55,14 +57,19 @@ defmodule Access.Map do
   end
 
   def kvs(:get_and_update, data, next) do
-    zip = Enum.map(data, next)
-    {get, update} = Enum.unzip(zip)
-    {get, Map.new(update)}
+    dezipper = fn kv ->
+      case next.(kv) do
+        {get, update} -> {get, [update]}
+        :pop -> {kv, []}
+      end
+    end
+
+    {gets, updates} = Enum.unzip(Enum.map(data, dezipper))
+    {gets, Map.new(Enum.concat(updates))}
   end
 
   @doc """
   Access key-value pairs of a map according to a predicate.
-  This does not implement the handling of pop.
   """
   def kvs_filter(p), do: fn op, data, next -> vs_filter(op, data, next, p) end
 
@@ -73,23 +80,18 @@ defmodule Access.Map do
   def kvs_filter(:get_and_update, data, next, p) do
     dezipper = fn kv ->
       if p.(kv) do
-        {get, update} = next.(kv)
-        {[get], update}
+        case next.(kv) do
+          {get, update} -> {[get], [update]}
+          :pop -> {[kv], []}
+        end
       else
-        {[], kv}
+        {[], [kv]}
       end
     end
 
     {gets, updates} = Enum.unzip(Enum.map(data, dezipper))
     get = Enum.concat(gets)
-    update = Map.new(updates)
+    update = Map.new(Enum.concat(updates))
     {get, update}
   end
-
-  #def kv do
-  #  fn op, data, next ->
-  #    traverse(data, next)
-  #
-  #  end
-  #end
 end

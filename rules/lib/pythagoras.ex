@@ -113,9 +113,9 @@ defmodule CallCC do
   end)
 
   def quux, do: callCC(fn k -> Monad.m CPS do
-    n = 5
+    n = IO.inspect(5)
     k.(n)
-    CPS.pure(25)
+    CPS.pure(IO.inspect(25))
   end end)
 
   def callCC(f), do: fn h -> f.(fn a -> fn _ -> h.(a) end end).(h) end

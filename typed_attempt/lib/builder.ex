@@ -66,8 +66,6 @@ defmodule Builder do
       DT.type(_) = x -> x
       DT.rigid_variable(_) = x -> x
       DT.variable(name) -> f.(name)
-      DT.alt(xs) ->
-        DT.alt(Enum.map(xs, &map_type_variables(&1, f)))
       DT.hkt(name, params) ->
         DT.hkt(name, Enum.map(params, &map_type_variables(&1, f)))
       DT.fun(params, return) ->
@@ -90,22 +88,6 @@ defmodule Builder do
           :error -> :error
           {:ok, rargs} -> {:ok, DT.hkt(name, Enum.reverse(rargs))}
         end
-
-      {DT.alt(_xs) = t, DT.alt(ys)} ->
-        Stream.map(ys, &merge_unknowns(t, &1))
-        |> Enum.reduce_while([], fn
-          {:ok, arg}, rargs -> {:cont, [arg | rargs]}
-          :error, _ -> {:halt, :error}
-        end)
-        |> case do
-          :error -> :error
-          [z] -> {:ok, z}
-          zs -> {:ok, DT.alt(Enum.reverse(zs))}
-        end
-
-      {DT.alt(xs), type} ->
-        Stream.map(xs, &merge_unknowns(&1, type))
-        |> Enum.find(:error, &match?({:ok, _}, &1))
 
       _other -> :error
     end
@@ -181,13 +163,6 @@ defmodule Builder do
 
       DT.rigid_variable(name) -> {{name, [], nil}, MapSet.new([name])}
 
-      DT.alt(args) ->
-        {args, quants} = Enum.map_reduce(args, MapSet.new(), fn arg, quants ->
-          {arg_ast, quants2} = type_to_ast(arg)
-          {arg_ast, MapSet.union(quants, quants2)}
-        end)
-        {{:|, [], args}, quants}
-
       DT.hkt(name, args) ->
         {args, quants} = Enum.map_reduce(args, MapSet.new(), fn arg, quants ->
           {arg_ast, quants2} = type_to_ast(arg)
@@ -213,7 +188,6 @@ defmodule Builder do
     case ast do
       {name, _meta, ctxt} when is_atom(ctxt) and is_map_key(quants.map, name) -> DT.variable(name)
       {name, _meta, []} -> DT.type(name)
-      {:|, _meta, [_|_] = args} -> DT.alt(Enum.map(args, &from_ast(&1, quants)))
       {name, _meta, [_|_] = args} -> DT.hkt(name, Enum.map(args, &from_ast(&1, quants)))
       ~m/(#{...parameters} -> #{return})/ ->
         parameters = Enum.map(parameters, &from_ast(&1, quants))

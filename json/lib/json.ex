@@ -1,13 +1,12 @@
 defmodule Json do
-  import Parser, only: [
-    parser!: 1,
-
-    parsed: 2,
-    failed: 0,
-
-    as: 2,
-    |||: 2,
-  ]
+  import Parser,
+    only: [
+      parser!: 1,
+      parsed: 2,
+      failed: 0,
+      as: 2,
+      |||: 2
+    ]
 
   require Parser
 
@@ -20,10 +19,10 @@ defmodule Json do
     end
   end
 
-  def char(c) when is_integer(c), do: Parser.satisfy & &1 == c
+  def char(c) when is_integer(c), do: Parser.satisfy(&(&1 == c))
 
   def digit do
-    Parser.satisfy(& &1 in ?0..?9)
+    Parser.satisfy(&(&1 in ?0..?9))
     |> Parser.map(&digit_to_int/1)
   end
 
@@ -31,10 +30,11 @@ defmodule Json do
 
   def string(str) when is_binary(str) do
     str_size = byte_size(str)
-    parser! fn
+
+    parser!(fn
       <<^str::binary-size(str_size), rest::binary>> -> parsed(rest, str)
       _ -> failed()
-    end
+    end)
   end
 
   def jNull do
@@ -42,7 +42,7 @@ defmodule Json do
   end
 
   def jBool do
-    string("true")  |> as(true) ||| string("false") |> as(false)
+    string("true") |> as(true) ||| string("false") |> as(false)
   end
 
   def json_char do
@@ -53,18 +53,18 @@ defmodule Json do
       ?\r,
       ?\t,
       ?\b,
-      ?\f,
+      ?\f
     ]
 
-    string("\\\"") |> as("\"")
-      ||| string("\\\\") |> as("\\")
-      ||| string("\\n")  |> as("\n")
-      ||| string("\\r")  |> as("\r")
-      ||| string("\\t")  |> as("\t")
-      ||| string("\\b")  |> as("\b")
-      ||| string("\\f")  |> as("\f")
-      # TODO: unicode_char
-      ||| Parser.satisfy(& &1 not in cs)
+    # TODO: unicode_char
+    string("\\\"") |> as("\"") |||
+      string("\\\\") |> as("\\") |||
+      string("\\n") |> as("\n") |||
+      string("\\r") |> as("\r") |||
+      string("\\t") |> as("\t") |||
+      string("\\b") |> as("\b") |||
+      string("\\f") |> as("\f") |||
+      Parser.satisfy(&(&1 not in cs))
   end
 
   def jString do
@@ -74,10 +74,11 @@ defmodule Json do
   def jStringb do
     for(
       optFirst <- Parser.optional(json_char()),
-      x <- case optFirst do
-        :none -> Parser.pure("")
-        {:some, str} -> jStringb() |> Parser.map(&<<str::utf8, &1::binary>>)
-      end,
+      x <-
+        case optFirst do
+          :none -> Parser.pure("")
+          {:some, str} -> jStringb() |> Parser.map(&<<str::utf8, &1::binary>>)
+        end,
       into: Parser.zero()
     ) do
       x
@@ -89,8 +90,7 @@ defmodule Json do
   end
 
   def jUInt do
-    digit19 =
-      for d <- Parser.satisfy(& &1 in ?1..?9), into: Parser.zero(), do: digit_to_int(d)
+    digit19 = for d <- Parser.satisfy(&(&1 in ?1..?9)), into: Parser.zero(), do: digit_to_int(d)
 
     num =
       for(
@@ -102,7 +102,6 @@ defmodule Json do
       end
 
     num ||| digit()
-
   end
 
   def digits, do: Parser.some(digit())
@@ -118,7 +117,7 @@ defmodule Json do
   end
 
   def signInt({:some, ?-}, i), do: -i
-  def signInt(_,      i),      do: i
+  def signInt(_, i), do: i
 
   def jFrac do
     for(
@@ -169,12 +168,12 @@ defmodule Json do
 
   def jValue do
     p =
-      jNull()
-        ||| jBool()
-        ||| jString()
-        ||| jNumber()
-        ||| jArray()
-        ||| jObject()
+      jNull() |||
+        jBool() |||
+        jString() |||
+        jNumber() |||
+        jArray() |||
+        jObject()
 
     p |> Parser.surrounded_by(spaces())
   end
@@ -200,11 +199,13 @@ defmodule Json do
   end
 
   def dbg_(parser, label) do
-    parser! fn input ->
+    parser!(fn input ->
       _ = IO.inspect(input, label: "#{label} | input")
+
       Parser.run_parser(parser, input)
       |> IO.inspect(label: "#{label} | result")
-    end
+    end)
+
     parser
   end
 end
