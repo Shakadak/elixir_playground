@@ -53,23 +53,17 @@ defmodule FiniteDomain do
   end
 
   def nextVar do
-    CE.compute __MODULE__ do
-      let! s = get()
-      let v = s.varSupply
-      do! put %FDState{s | varSupply: v + 1}
-      pure v
-    end
+    state &get_and_update_in(&1, [Access.key!(:varSupply)], fn v -> {v, v + 1} end)
   end
 
   def isOneOf(x, %Range{} = domain), do: (isOneOf x, (Enum.to_list domain))
   def isOneOf(x, domain) when (is_list domain) do
     modify fn s ->
-      vm = s.varMap
       vi = %VarInfo{
         delayedConstraints: (pure {}),
         values: (MapSet.new domain),
       }
-      %FDState{s | varMap: Map.put(vm, x, vi)}
+      put_in(s, [Access.key!(:varMap), Access.key(x)], vi)
     end
   end
 
@@ -95,17 +89,19 @@ defmodule FiniteDomain do
       do! put %FDState{s | varMap: Map.put(vm, x, %VarInfo{vi | values: i})}
       pure! vi.delayedConstraints
     end
+
+    # state fn s ->
+    #   get_and_update_in s, [Access.key!(:varMap), Access.key!(x)], fn vi ->
+    #     {vi.delayedConstraints, put_in(vi, [Access.key!(:values)], i)}
+    #   end
+    # end
   end
 
   # add a new constraint for a variable to the constraint store
   def addConstraint x, constraints do
-    CE.compute __MODULE__ do
-      let! s = get()
-      let vm = s.varMap
-      let vi = Map.fetch! vm, x
-      let cs = vi.delayedConstraints
-      pure! (put %FDState{s | varMap: Map.put(vm, x, %VarInfo{vi | delayedConstraints: CE.compute __MODULE__ do do! cs ; pure! constraints end})})
-    end
+    path = [Access.key!(:varMap), Access.key!(x), Access.key!(:delayedConstraints)]
+    updater = fn cs -> CE.compute __MODULE__ do do! cs ; pure! constraints end end
+    modify &update_in(&1, path, updater)
   end
 
   # Useful helper function for adding binary constraints between FDVars
