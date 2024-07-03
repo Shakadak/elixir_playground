@@ -23,6 +23,9 @@ defmodule FiniteDomain.MixProject do
     [
       {:computation_expression, path: "../../computation_expression", override: true},
       {:transformers, path: "../../transformers.ex"},
+
+      ### DEV
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
     ]
   end
 end

@@ -36,6 +36,9 @@ defmodule FiniteDomain do
 
   ### ------------------------------------------------------------------------------------
 
+  @doc """
+  Run the monad and return a stream of solutions
+  """
   def runFD fd do
     evalStateT fd, initState()
   end
@@ -44,6 +47,9 @@ defmodule FiniteDomain do
     %FDState{varSupply: 0, varMap: %{}}
   end
 
+  @doc """
+  Create a new FDVar
+  """
   def newVar domain do
     CE.compute __MODULE__ do
       let! v = nextVar()
@@ -67,6 +73,9 @@ defmodule FiniteDomain do
     end
   end
 
+  @doc """
+  Create multiple FDVars
+  """
   def newVars n, domain do
     replicateM n, (newVar domain)
   end
@@ -114,6 +123,9 @@ defmodule FiniteDomain do
     end
   end
 
+  @doc """
+  Constrain a FDVar to a specific value
+  """
   def hasValue var, val do
     CE.compute __MODULE__ do
       let! vals = lookup var
@@ -123,6 +135,9 @@ defmodule FiniteDomain do
     end
   end
 
+  @doc """
+  Constrain two FDVars to be the same
+  """
   def same x, y do
     addBinaryConstraint fn x, y ->
       CE.compute __MODULE__ do
@@ -137,16 +152,24 @@ defmodule FiniteDomain do
     end, x, y
   end
 
+  @doc """
+  Constrain two FDVars to be the different
+  """
   def different x, y do
     addBinaryConstraint fn x, y ->
       CE.compute __MODULE__ do
         let! xv = lookup x
         let! yv = lookup y
         do! guard (MapSet.size(xv) > 1 or MapSet.size(yv) > 1 or xv != yv)
+        do! whenM(MapSet.size(xv) == 1 and MapSet.subset?(xv, yv), (update y, MapSet.difference(yv, xv)))
+        do! whenM(MapSet.size(yv) == 1 and MapSet.subset?(yv, xv), (update x, MapSet.difference(xv, yv)))
       end
     end, x, y
   end
 
+  @doc """
+  Constrain a list of FDVars to be different
+  """
   def allDifferent [x | xs] do
     CE.compute __MODULE__ do
       do! mapM_ xs, &(different x, &1)
@@ -156,6 +179,9 @@ defmodule FiniteDomain do
 
   def allDifferent [] do pure {} end
 
+  @doc """
+  Constrain one FDVar to be less than another
+  """
   def lessThan(l, r) do
     addBinaryConstraint fn x, y ->
       CE.compute __MODULE__ do
@@ -173,12 +199,17 @@ defmodule FiniteDomain do
     end, l, r
   end
 
+  @doc """
+  Backtracking search for all solutions
+  """
+  # labelling :: [FDVar s] -> FD s [Int]
   def labelling xs do
     mapM xs, fn var ->
       CE.compute __MODULE__ do
         let! vals = lookup var
         let! val = lift MapSet.to_list(vals)
-        do! var |> (hasValue val)
+        do! hasValue var, val
+        #let _ = IO.inspect(val, label: "labelling(#{inspect(var)})")
         pure val
       end
     end
