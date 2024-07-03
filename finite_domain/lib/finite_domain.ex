@@ -16,23 +16,23 @@ end
 defmodule FiniteDomain do
   require ComputationExpression, as: CE
 
-  import Wrapped.StreamState
+  import Wrapped.ListState
 
   ### COMPUTATION EXPRESSION -------------------------------------------------------------
 
-  def _Pure(x), do: Wrapped.StreamState.pure(x)
+  defmacro _Pure(x), do: (quote do Wrapped.ListState.pure(unquote(x)) end)
 
-  def _Bind(m, f), do: Wrapped.StreamState.bind(m, f)
+  defmacro _Bind(m, f), do: (quote do Wrapped.ListState.bind(unquote(m), unquote(f)) end)
 
-  def _PureFrom(m), do: m
+  defmacro _PureFrom(m), do: m
 
-  def _Zero, do: Wrapped.StreamState.pure({})
+  defmacro _Zero, do: (quote do Wrapped.ListState.pure({}) end)
 
-  def _Combine(l, rk), do: Wrapped.StreamState.bind(l, fn {} -> rk.() end)
+  defmacro _Combine(l, rk), do: (quote do Wrapped.ListState.bind(unquote(l), fn {} -> unquote(rk).() end) end)
 
-  def _Delay(k), do: k
+  defmacro _Delay(k), do: k
 
-  def _Run(k), do: k.()
+  defmacro _Run(k), do: (quote do unquote(k).() end)
 
   ### ------------------------------------------------------------------------------------
 
@@ -82,7 +82,7 @@ defmodule FiniteDomain do
 
   # Lookup the current domain of a variable
   def lookup x do
-    CE.compute __MODULE__ do
+    CE.compute __MODULE__, debug: true do
       let! s = get()
       pure (Map.fetch!(s.varMap, x).values)
     end
@@ -91,7 +91,7 @@ defmodule FiniteDomain do
   # update the domain of a variable and fire all delayed constraints
   # associated with that variable
   def update x, i do
-    CE.compute __MODULE__ do
+    CE.compute __MODULE__, debug: true do
       let! s = get()
       let vm = s.varMap
       let vi = Map.fetch! vm, x
@@ -215,5 +215,5 @@ defmodule FiniteDomain do
     end
   end
 
-  defdelegate mplus(l, r), to: Wrapped.StreamState
+  defdelegate mplus(l, r), to: Wrapped.ListState
 end

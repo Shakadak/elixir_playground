@@ -1,7 +1,7 @@
 defmodule Sudoku do
   import FiniteDomain
   import ComputationExpression
-  import Wrapped.StreamState
+  import Wrapped.ListState
 
 
   def unlines(ls), do: Enum.join(ls, "\n")
