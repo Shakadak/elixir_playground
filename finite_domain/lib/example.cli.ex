@@ -103,6 +103,12 @@ defmodule Example.Cli do
 
 
   def main(_args) do
+    {time, _} = :timer.tc fn ->
     Sudoku.printSudoku test_kinda_mid()
+    end
+
+    IO.inspect(time, label: "time in microseconds")
+    IO.inspect(time / 1000, label: "time in milliseconds")
+    IO.inspect(time / 1_000_000, label: "time in seconds")
   end
 end
