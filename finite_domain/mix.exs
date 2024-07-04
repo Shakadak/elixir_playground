@@ -7,7 +7,8 @@ defmodule FiniteDomain.MixProject do
       version: "0.1.0",
       elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
-      deps: deps()
+      deps: deps(),
+      escript: escript(),
     ]
   end
 
@@ -26,6 +27,13 @@ defmodule FiniteDomain.MixProject do
 
       ### DEV
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:beam_file, ">= 0.0.0", only: :dev, runtime: false},
+    ]
+  end
+
+  defp escript do
+    [
+      main_module: Example.Cli,
     ]
   end
 end
