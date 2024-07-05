@@ -104,7 +104,7 @@ defmodule Example.Cli do
 
   def main(_args) do
     {time, _} = :timer.tc fn ->
-    Sudoku.printSudoku test_kinda_mid()
+    Sudoku.printSudoku test_dm_overton()
     end
 
     IO.inspect(time, label: "time in microseconds")

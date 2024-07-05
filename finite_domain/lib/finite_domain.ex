@@ -141,7 +141,6 @@ defmodule FiniteDomain do
   def same x, y do
     addBinaryConstraint fn x, y ->
       CE.compute __MODULE__ do
-        do! pure {}
         let! xv = lookup x
         let! yv = lookup y
         let i = MapSet.intersection xv, yv

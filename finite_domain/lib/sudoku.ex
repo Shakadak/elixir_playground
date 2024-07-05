@@ -48,7 +48,7 @@ defmodule Sudoku do
     |> Enum.chunk_every(3)
     |> Enum.chunk_every(3)
     |> Enum.chunk_every(3)
-    |> Enum.map(&Enum.concat(transpose(&1)))
+    |> Enum.map(fn xs -> Enum.map(transpose(xs), &Enum.concat/1) end)
     |> Enum.concat()
   end
   def transpose(xs), do: Enum.zip_with(xs, & &1)
