@@ -1,7 +1,7 @@
 defmodule Builder do
   import  Circe
 
-  alias   Data.Result
+  alias   Base.Result
   require Result
 
   alias   DataTypes, as: DT

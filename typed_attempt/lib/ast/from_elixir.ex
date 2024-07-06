@@ -1,5 +1,5 @@
 defmodule Ast.FromElixir do
-  alias   Data.Result
+  alias   Base.Result
   require Result
 
   def parse(ex_ast, context, parsers) do

@@ -1,7 +1,7 @@
 defmodule Builder.Function.Parameter do
   import  Circe
 
-  alias   Data.Result
+  alias   Base.Result
   require Result
   alias   DataTypes, as: DT
 
@@ -58,7 +58,7 @@ defmodule Builder.Function.Parameter do
           Map.fetch!(constructors, {name, length(params)})
 
         _ = case Builder.match_type(return_type, type, %{}) do
-          Data.Result.ok(vars_env) ->
+          Result.ok(vars_env) ->
             param_types = for param_type <- param_types, do: Builder.map_type_variables(param_type, fn var ->
               case Map.fetch(vars_env, var) do
                 {:ok, x} -> x

@@ -1,8 +1,8 @@
 defmodule Builder.Function do
   import  Circe
 
-  import  Data.Result
-  alias   Data.Result
+  import  Base.Result
+  alias   Base.Result
 
   alias   DataTypes, as: DT
 

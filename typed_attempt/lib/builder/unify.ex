@@ -1,7 +1,7 @@
 defmodule Builder.Unify do
   import  Circe
 
-  alias   Data.Result
+  alias   Base.Result
   require  Result
 
   alias ComputationExpression, as: CE
@@ -42,7 +42,7 @@ defmodule Builder.Unify do
   end
 
   def on_2_tuple(l, r, env) do
-    CE.compute Data.Result do
+    CE.compute Result do
       let! {l_type, env} = unify_type!(l, env)
       let! {r_type, env} = unify_type!(r, env)
       Result.pure {DT.hkt(:tuple, [l_type, r_type]), env}
@@ -59,7 +59,7 @@ defmodule Builder.Unify do
   end
 
   def on_cons(x, xs, meta, env) do
-    CE.compute Data.Result do
+    CE.compute Result do
       let! {head_type, env} = unify_type!(x, env)
       expected_type = DT.hkt(:list, [head_type])
 

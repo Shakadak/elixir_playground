@@ -2,7 +2,7 @@ defmodule Ast do
   alias ComputationExpression, as: CE
   require CE
 
-  alias Data.Result
+  alias Base.Result
   require Result
 
   alias   DataTypes, as: DT
@@ -67,7 +67,7 @@ defmodule Ast do
     import Result
     case ast do
       lit(_) = ast ->
-        CE.compute Data.Result do
+        CE.compute Result do
           let! found = infer(ast, env)
           case found do
             ^expected_type -> ok {}
@@ -76,7 +76,7 @@ defmodule Ast do
         end
 
       var(_) = ast ->
-        CE.compute Data.Result do
+        CE.compute Result do
           let! found = infer(ast, env)
           case found do
             ^expected_type -> ok {}
@@ -85,7 +85,7 @@ defmodule Ast do
         end
 
       app(e, args) ->
-        CE.compute Data.Result do
+        CE.compute Result do
           let! found = infer(e, env)
           is_output_concrete?(found)
           |> if do
@@ -118,21 +118,21 @@ defmodule Ast do
         end
 
       app(e, args) ->
-        CE.compute Data.Result do
+        CE.compute Result do
           let! e_t = annotate(e, mode, env)
           let! args_t = Result.mapM(args, &annotate(&1, mode, env))
           pure app_t(e_t, args_t, DT.unknown())
         end
 
       Ast.Core.case(exprs, clauses) ->
-        CE.compute Data.Result do
+        CE.compute Result do
           let! exprs_t = Result.mapM(exprs, &annotate(&1, mode, env))
           let! clauses_t = Result.mapM(clauses, &annotate(&1, mode, env))
           pure Ast.Core.Typed.case_t(exprs_t, clauses_t, DT.unknown())
         end
 
       clause(pats, guards, expr) ->
-        CE.compute Data.Result do
+        CE.compute Result do
           let! pats_t = Result.mapM(pats, &annotate(&1, mode, env))
           let! guards_t = Result.mapM(guards, &annotate(&1, mode, env))
           let! expr_t = annotate(expr, mode, env)
