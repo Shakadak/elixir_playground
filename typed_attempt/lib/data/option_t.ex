@@ -1,5 +1,5 @@
 defmodule Data.OptionT do
-  require Data.Option
+  require Base.Option
 
   defmacro mkMap(t, x, f) do
     quote do unquote(t).map(unquote(x), &Option.map(&1, unquote(f))) end
