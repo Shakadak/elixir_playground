@@ -24,3 +24,6 @@ finite_domain-*.tar
 
 # Temporary files, for example, from tests.
 /tmp/
+
+# escript
+/finite_domain
