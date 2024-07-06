@@ -1,7 +1,7 @@
 defmodule Ast.BaseTypingTest do
   use ExUnit.Case
 
-  alias Data.Result
+  alias Base.Result
   require Result
   import Result
 

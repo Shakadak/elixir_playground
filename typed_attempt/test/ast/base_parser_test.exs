@@ -2,7 +2,7 @@ defmodule Ast.BaseParserTest do
   use ExUnit.Case
   doctest Ast.BaseParser
 
-  alias   Data.Result
+  alias   Base.Result
   require Result
 
   import  Ast.Core, only: [
