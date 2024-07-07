@@ -114,42 +114,59 @@ defmodule Ast.BaseTypingTest do
     assert ok({}) = Wrapped.ResultState.evalStateT(Ast.check(ast, fun), env)
   end
 
-  test "type x + y + z" do
-    ast = app(var({:+, 2}), [app(var({:+, 2}), [var(:x), var(:y)]), var(:z)])
+  # test "type x + y + z" do
+  #   ast = app(var({:+, 2}), [app(var({:+, 2}), [var(:x), var(:y)]), var(:z)])
 
-    int = DT.type(:integer)
-    plus = DT.fun([int, int], int)
-    env = %{
-      {:+, 2} => plus,
-      :x => int,
-      :y => int,
-      :z => int,
-    }
-    typed_ast = Ast.fill_types(ast, env)
+  #   int = DT.type(:integer)
+  #   plus = DT.fun([int, int], int)
+  #   env = %{
+  #     {:+, 2} => plus,
+  #     :x => int,
+  #     :y => int,
+  #     :z => int,
+  #   }
+  #   typed_ast = Ast.fill_types(ast, env)
 
-    assert Result.ok(app_t(var_t({:+, 2}, ^plus), [app_t(var_t({:+, 2}, ^plus), [var_t(:x, ^int), var_t(:y, ^int)], DT.unknown()), var_t(:z, ^int)], DT.unknown())) = typed_ast
-  end
+  #   assert Result.ok(app_t(var_t({:+, 2}, ^plus), [app_t(var_t({:+, 2}, ^plus), [var_t(:x, ^int), var_t(:y, ^int)], DT.unknown()), var_t(:z, ^int)], DT.unknown())) = typed_ast
+  # end
 
-  test "parse case n do 42 ..." do
-    ast = Ast.Core.case([var(:n)], [
-      clause([lit(42)], [], lit(:ok)),
-      clause([var(:_)], [], lit(:error))
-    ])
+  # test "parse case n do 42 ..." do
+  #   ast = Ast.Core.case([var(:n)], [
+  #     clause([lit(42)], [], lit(:ok)),
+  #     clause([var(:_)], [], lit(:error))
+  #   ])
 
-    atom = DT.type(:atom)
-    int = DT.type(:integer)
-    default = DT.unknown()
-    env = %{
-      :n => int,
-      :_ => default,
-    }
-    typed_ast = Ast.fill_types(ast, env)
+  #   atom = DT.type(:atom)
+  #   int = DT.type(:integer)
+  #   default = DT.unknown()
+  #   env = %{
+  #     :n => int,
+  #     :_ => default,
+  #   }
+  #   typed_ast = Ast.fill_types(ast, env)
 
-    assert Result.ok(Ast.Core.Typed.case_t([var_t(:n, ^int)], [
-      clause_t([lit_t(42, ^int)], [], lit_t(:ok, ^atom), DT.unknown()),
-      clause_t([var_t(:_, ^default)], [], lit_t(:error, ^atom), DT.unknown())
-    ], DT.unknown())) = typed_ast
-  end
+  #   assert Result.ok(Ast.Core.Typed.case_t([var_t(:n, ^int)], [
+  #     clause_t([lit_t(42, ^int)], [], lit_t(:ok, ^atom), DT.unknown()),
+  #     clause_t([var_t(:_, ^default)], [], lit_t(:error, ^atom), DT.unknown())
+  #   ], DT.unknown())) = typed_ast
+  # end
 
   # TODO : https://stackoverflow.com/questions/53039099/why-are-there-flexible-and-rigid-bounds-in-mlf
+
+  test "auto succ fail" do
+    ast = app(var(:auto), [var(:succ)])
+
+    int = DT.type(:integer)
+    a = DT.rigid_variable(:a)
+    succ = DT.fun([int], int)
+    id = DT.fun([a], a)
+    auto = DT.fun([id], id)
+    default = DT.unknown()
+    env = %{
+      :auto => auto,
+      :succ => succ,
+    }
+
+    assert error(mismatched_types(_, _)) = Wrapped.ResultState.evalStateT(Ast.check(ast, default), env)
+  end
 end

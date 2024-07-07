@@ -142,4 +142,12 @@ defmodule Ast.BaseParserTest do
       let(non_rec(var(:i), app(var({:id, 1}), [var(:a)])), app(var({:+, 2}), [var(:i), var(:a)]))
     ) = ast
   end
+
+  test "parse fn i -> :a ; i end" do
+    ex_ast = quote do fn i -> :a ; i end end
+    ast = Ast.FromElixir.parse(ex_ast, expression(), [{Ast.BaseParser, :parse, []}])
+    assert Result.ok(
+      lam([var(:i)], let(non_rec(var(:_), lit(:a)), var(:i)))
+    ) = ast
+  end
 end

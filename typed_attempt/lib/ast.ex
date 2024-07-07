@@ -57,12 +57,12 @@ defmodule Ast do
 
   def infer(ast) do
     import Result
-    case ast do
-      lit(x) when is_integer(x) ->
-        Wrapped.ResultState.pure DT.type(:integer)
+    CE.compute Workflow.ResultState do
+      match ast do
+        lit(x) when is_integer(x) ->
+          pure DT.type(:integer)
 
-      var(v) ->
-        CE.compute Workflow.ResultState do
+        var(v) ->
           let! env = ResultState.get()
           Data.Map.fetch(env, v)
           |> match do
@@ -74,34 +74,30 @@ defmodule Ast do
   end
 
   def check(ast, expected_type) do
-    case ast do
-      lit(_) = ast ->
-        CE.compute Workflow.ResultState do
+    CE.compute Workflow.ResultState do
+      match ast do
+        lit(_) = ast ->
           let! found = infer(ast)
           match found do
             ^expected_type -> pure {}
             other_type -> pure! Wrapped.ResultState.throwError mismatched_types other_type, expected_type
           end
-        end
 
-      var(_) = ast ->
-        CE.compute Workflow.ResultState do
+        var(_) = ast ->
           match! infer(ast) do
             ^expected_type -> pure {}
             other_type -> pure! Wrapped.ResultState.throwError mismatched_types other_type, expected_type
           end
-        end
 
-      app(e, args) ->
-        CE.compute Workflow.ResultState do
+        app(e, args) ->
           match! infer(e) do
             DT.fun(params_type, ^expected_type) ->
-              pure! Wrapped.ResultState.zipWithM_(args, params_type, &check(&1, &2))
+            pure! Wrapped.ResultState.zipWithM_(args, params_type, &check(&1, &2))
 
             DT.fun(_params_type, other_type) ->
-              pure! ResultState.throwError mismatched_types other_type, expected_type
+            pure! ResultState.throwError mismatched_types other_type, expected_type
           end
-        end
+      end
     end
   end
 
