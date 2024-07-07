@@ -9,7 +9,7 @@ defmodule TypedAttempt do
     |> Enum.concat()
     |> case do
       [] -> {:error, "No type found in module #{inspect(module)}"}
-      [_|_] = types -> {:ok, types}
+      [_|_] = types -> {:ok, Map.new(types)}
     end
   end
 

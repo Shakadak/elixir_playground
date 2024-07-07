@@ -2,6 +2,7 @@ defmodule Ast do
   alias ComputationExpression, as: CE
   require CE
 
+  alias Wrapped.ResultState
   alias Base.Result
   require Result
 
@@ -43,69 +44,71 @@ defmodule Ast do
       DT.variable(_name) ->
         false
 
+      DT.type(_) ->
+        true
+
       _ ->
         false
     end
   end
 
-  def infer(ast, env) do
+  def is_fun_output_concrete?() do
+  end
+
+  def infer(ast) do
     import Result
     case ast do
       lit(x) when is_integer(x) ->
-        ok DT.type(:integer)
+        Wrapped.ResultState.pure DT.type(:integer)
 
       var(v) ->
-        Data.Map.fetch(env, v)
-        |> case do
-          ok found -> ok found
-          error _ -> error unknown_type()
-        end
+        CE.compute Workflow.ResultState do
+          let! env = ResultState.get()
+          Data.Map.fetch(env, v)
+          |> match do
+            ok found -> pure found
+            error _ -> pure! ResultState.throwError unknown_type()
+          end
+      end
     end
   end
 
-  def check(ast, env, expected_type) do
-    import Result
+  def check(ast, expected_type) do
     case ast do
       lit(_) = ast ->
-        CE.compute Result do
-          let! found = infer(ast, env)
-          case found do
-            ^expected_type -> ok {}
-            other_type -> error mismatched_types other_type, expected_type
+        CE.compute Workflow.ResultState do
+          let! found = infer(ast)
+          match found do
+            ^expected_type -> pure {}
+            other_type -> pure! Wrapped.ResultState.throwError mismatched_types other_type, expected_type
           end
         end
 
       var(_) = ast ->
-        CE.compute Result do
-          let! found = infer(ast, env)
-          case found do
-            ^expected_type -> ok {}
-            other_type -> error mismatched_types other_type, expected_type
+        CE.compute Workflow.ResultState do
+          match! infer(ast) do
+            ^expected_type -> pure {}
+            other_type -> pure! Wrapped.ResultState.throwError mismatched_types other_type, expected_type
           end
         end
 
       app(e, args) ->
-        CE.compute Result do
-          let! found = infer(e, env)
-          is_output_concrete?(found)
-          |> if do
-            case found do
-              DT.fun(params_type, ^expected_type) ->
-                Result.zipWithM(args, params_type, &check(&1, env, &2))
+        CE.compute Workflow.ResultState do
+          match! infer(e) do
+            DT.fun(params_type, ^expected_type) ->
+              pure! Wrapped.ResultState.zipWithM_(args, params_type, &check(&1, &2))
 
-              DT.fun(_params_type, other_type) ->
-                error mismatched_types other_type, expected_type
-            end
-          else
-            # backpropagate
-            # then compare
+            DT.fun(_params_type, other_type) ->
+              pure! ResultState.throwError mismatched_types other_type, expected_type
           end
-          ok {}
         end
     end
   end
 
-  @spec annotate(ast, :check | :synthesize, env) :: Result.t
+  def unify(_expected, _ast) do
+  end
+
+  @spec annotate(ast, :check | :synthesize, env) :: Result.t(any, any)
     when ast: any, env: any
   def annotate(ast, mode, env)
 
@@ -118,21 +121,21 @@ defmodule Ast do
         end
 
       app(e, args) ->
-        CE.compute Result do
+        CE.compute Workflow.Result do
           let! e_t = annotate(e, mode, env)
           let! args_t = Result.mapM(args, &annotate(&1, mode, env))
           pure app_t(e_t, args_t, DT.unknown())
         end
 
       Ast.Core.case(exprs, clauses) ->
-        CE.compute Result do
+        CE.compute Workflow.Result do
           let! exprs_t = Result.mapM(exprs, &annotate(&1, mode, env))
           let! clauses_t = Result.mapM(clauses, &annotate(&1, mode, env))
           pure Ast.Core.Typed.case_t(exprs_t, clauses_t, DT.unknown())
         end
 
       clause(pats, guards, expr) ->
-        CE.compute Result do
+        CE.compute Workflow.Result do
           let! pats_t = Result.mapM(pats, &annotate(&1, mode, env))
           let! guards_t = Result.mapM(guards, &annotate(&1, mode, env))
           let! expr_t = annotate(expr, mode, env)

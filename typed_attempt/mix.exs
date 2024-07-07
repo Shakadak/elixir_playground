@@ -23,6 +23,7 @@ defmodule TypedAttempt.MixProject do
   defp deps do
     [
       {:transformers, path: "../../transformers.ex"},
+      {:computation_expression, path: "../../computation_expression.ex"},
       {:circe, "~> 0.2"},
       {:ex_doc, "~> 0.29", only: :dev, runtime: false},
       {:dialyxir, "~> 1.0", only: :dev, runtime: false},

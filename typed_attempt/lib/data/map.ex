@@ -7,7 +7,7 @@ defmodule Data.Map do
   @doc """
   Behave the same as `Map.fetch/2`, but returns a more consistent error.
   """
-  @spec fetch(map, key) :: Data.Result.t(error, value)
+  @spec fetch(map, key) :: Base.Result.t(error, value)
   def fetch(map, key) do
     try do
       Map.fetch(map, key)
@@ -66,7 +66,7 @@ defmodule Data.Map do
   """
   @spec map(map, (value -> any)) :: map
   def map(map, f) do
-    :maps.map(map, fn _k, v -> f.(v) end)
+    :maps.map(fn _k, v -> f.(v) end, map)
   end
 
   @doc """

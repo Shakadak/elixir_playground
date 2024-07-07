@@ -5,6 +5,8 @@ defmodule Ast.BaseTypingTest do
   require Result
   import Result
 
+  require Transformer.StateT
+
   alias   DataTypes, as: DT
   require DT
 
@@ -32,9 +34,10 @@ defmodule Ast.BaseTypingTest do
 
   test "check 1 = integer" do
     ast = lit(1)
+    int = DT.type(:integer)
     env = %{}
 
-    assert ok({}) = Ast.check(ast, env, DT.type(:integer))
+    assert ok({}) = Wrapped.ResultState.evalStateT(Ast.check(ast, int), env)
   end
 
   test "check 1 + 1 = integer" do
@@ -46,7 +49,7 @@ defmodule Ast.BaseTypingTest do
       {:+, 2} => plus,
     }
 
-    assert ok({}) = Ast.check(ast, env, int)
+    assert ok({}) = Wrapped.ResultState.evalStateT(Ast.check(ast, int), env)
   end
 
   test "check x + 1 = unknown, when x missing" do
@@ -58,7 +61,7 @@ defmodule Ast.BaseTypingTest do
       {:+, 2} => plus,
     }
 
-    assert error(unknown_type()) = Ast.check(ast, env, int)
+    assert error(unknown_type()) = Wrapped.ResultState.evalStateT(Ast.check(ast, int), env)
   end
 
   test "check x + 1 = integer when x = integer" do
@@ -71,7 +74,7 @@ defmodule Ast.BaseTypingTest do
       :x => int,
     }
 
-    assert ok({}) = Ast.check(ast, env, int)
+    assert ok({}) = Wrapped.ResultState.evalStateT(Ast.check(ast, int), env)
   end
 
   test "check x.(1) = integer when x = integer -> integer" do
@@ -83,19 +86,32 @@ defmodule Ast.BaseTypingTest do
       :x => fun,
     }
 
-    assert ok({}) = Ast.check(ast, env, int)
+    assert ok({}) = Wrapped.ResultState.evalStateT(Ast.check(ast, int), env)
   end
 
-  test "check x.(x) = a -> a when x = a -> a" do
-    ast = app(var(:x), [var(:x)])
+  test "check x.(1) = integer when x = a -> a" do
+    ast = app(var(:x), [lit(1)])
 
-    a = DT.variable(:a)
+    int = DT.type(:integer)
+    a = DT.rigid_variable(:a)
     fun = DT.fun([a], a)
     env = %{
       :x => fun,
     }
 
-    assert ok({}) = Ast.check(ast, env, fun)
+    assert ok({}) = Wrapped.ResultState.evalStateT(Ast.check(ast, int), env)
+  end
+
+  test "check x.(x) = a -> a when x = a -> a" do
+    ast = app(var(:x), [var(:x)])
+
+    a = DT.rigid_variable(:a)
+    fun = DT.fun([a], a)
+    env = %{
+      :x => fun,
+    }
+
+    assert ok({}) = Wrapped.ResultState.evalStateT(Ast.check(ast, fun), env)
   end
 
   test "type x + y + z" do
@@ -134,4 +150,6 @@ defmodule Ast.BaseTypingTest do
       clause_t([var_t(:_, ^default)], [], lit_t(:error, ^atom), DT.unknown())
     ], DT.unknown())) = typed_ast
   end
+
+  # TODO : https://stackoverflow.com/questions/53039099/why-are-there-flexible-and-rigid-bounds-in-mlf
 end

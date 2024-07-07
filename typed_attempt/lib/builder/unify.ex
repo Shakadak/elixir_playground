@@ -42,10 +42,10 @@ defmodule Builder.Unify do
   end
 
   def on_2_tuple(l, r, env) do
-    CE.compute Result do
+    CE.compute Workflow.Result do
       let! {l_type, env} = unify_type!(l, env)
       let! {r_type, env} = unify_type!(r, env)
-      Result.pure {DT.hkt(:tuple, [l_type, r_type]), env}
+      pure {DT.hkt(:tuple, [l_type, r_type]), env}
     end
   end
 
@@ -59,24 +59,24 @@ defmodule Builder.Unify do
   end
 
   def on_cons(x, xs, meta, env) do
-    CE.compute Result do
+    CE.compute Workflow.Result do
       let! {head_type, env} = unify_type!(x, env)
-      expected_type = DT.hkt(:list, [head_type])
+      let expected_type = DT.hkt(:list, [head_type])
 
       let! {unified_type, env} = unify_type!(xs, env)
 
-      case Builder.match_type(expected_type, unified_type, %{}) do
+      match Builder.match_type(expected_type, unified_type, %{}) do
         Result.error({kind, opts}) ->
-          expected_type_string = Builder.expr_type_to_string([{:|, [], [x, {:_, [], nil}]}], expected_type)
-          unified_type_string = Builder.expr_type_to_string(xs, unified_type)
-          opts = Keyword.take(meta, [:line]) ++ [
+          let expected_type_string = Builder.expr_type_to_string([{:|, [], [x, {:_, [], nil}]}], expected_type)
+          let unified_type_string = Builder.expr_type_to_string(xs, unified_type)
+          let opts = Keyword.take(meta, [:line]) ++ [
             description: "Could not match expected #{expected_type_string} with actual #{unified_type_string}"
           ]
           |> Keyword.merge(opts)
-          Result.error({kind, opts})
+          pure! Result.error({kind, opts})
 
         Result.ok(_vars_env) ->
-          Result.ok({expected_type, env})
+          pure {expected_type, env}
       end
     end
   end
