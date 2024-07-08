@@ -12,7 +12,7 @@ defmodule Ast do
   import  Ast.Core, only: [
     app: 2,
     clause: 3,
-    # lam: 2,
+    lam: 2,
     # let: 2,
     lit: 1,
     # non_rec: 2,
@@ -57,11 +57,15 @@ defmodule Ast do
 
   def infer(ast) do
     import Result
+    # We might not even need the Result workflow, only State
     CE.compute Workflow.ResultState do
       match ast do
         lit(x) when is_integer(x) ->
           pure DT.type(:integer)
 
+        # If its a variable, we check if we have it in the env
+        # If not, we synthesize a variable that needs to be filled later
+        # Erroring now is a mistake
         var(v) ->
           let! env = ResultState.get()
           Data.Map.fetch(env, v)
@@ -69,6 +73,11 @@ defmodule Ast do
             ok found -> pure found
             error _ -> pure! ResultState.throwError unknown_type()
           end
+
+        lam(args, expr) ->
+          let! args_t = Wrapped.ResultState.mapM(args, &infer/1)
+          let! expr_t = infer(expr)
+          pure DT.fun(args_t, expr_t)
       end
     end
   end
