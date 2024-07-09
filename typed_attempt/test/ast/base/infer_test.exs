@@ -1,4 +1,4 @@
-defmodule Ast.BaseInferTest do
+defmodule Ast.Base.InferTest do
   use ExUnit.Case
 
   alias   DataTypes, as: DT
@@ -6,8 +6,6 @@ defmodule Ast.BaseInferTest do
 
   alias Base.Result
   import Result
-
-  import Ast
 
   import  Ast.Core, only: [
     # app: 2,
@@ -32,17 +30,16 @@ defmodule Ast.BaseInferTest do
   test "infer 1 = integer" do
     ast = lit(1)
     int = DT.type(:integer)
-    env = %{}
 
-    assert ok(^int) = Wrapped.ResultState.evalStateT(Ast.infer(ast), env)
+    assert ok(^int) = Wrapped.ResultState.evalStateT(Ast.infer(ast), Ast.empty_state())
   end
 
   test "infer fn x -> x end = a -> a" do
-    ast = lam([var(:x)], [var(:x)])
-    int = DT.type(:integer)
-    env = %{}
+    ast = lam([var(:x)], var(:x))
+    a = DT.variable(:a0)
+    f = DT.fun([a], a)
 
-    assert ok(^int) = Wrapped.ResultState.evalStateT(Ast.infer(ast), env)
+    assert ok(^f) = Wrapped.ResultState.evalStateT(Ast.infer(ast), Ast.empty_state())
   end
 
 end

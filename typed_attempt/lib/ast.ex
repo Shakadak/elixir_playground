@@ -55,6 +55,17 @@ defmodule Ast do
   def is_fun_output_concrete?() do
   end
 
+  def empty_state, do: %{vars: %{}, seed: 0}
+
+  def tvar_from_num(n) do
+    [Enum.at(?a..?z, rem(n, 26)) | ~c"#{div(n, 26)}"]
+    |> List.to_atom()
+  end
+
+  def gen_var do
+    Wrapped.ResultState.state(&get_and_update_in(&1, [Ast.Access.seed()], fn seed -> {tvar_from_num(seed), seed + 1} end))
+  end
+
   def infer(ast) do
     import Result
     # We might not even need the Result workflow, only State
@@ -67,11 +78,15 @@ defmodule Ast do
         # If not, we synthesize a variable that needs to be filled later
         # Erroring now is a mistake
         var(v) ->
-          let! env = ResultState.get()
-          Data.Map.fetch(env, v)
+          let! vars = ResultState.gets(&get_in(&1, [Ast.Access.vars()]))
+          Data.Map.fetch(vars, v)
           |> match do
             ok found -> pure found
-            error _ -> pure! ResultState.throwError unknown_type()
+            error _ ->
+              let! new_var = gen_var()
+              let type = DT.variable(new_var)
+              do! Wrapped.ResultState.modify &put_in(&1, [Ast.Access.vars(), v], type)
+              pure type
           end
 
         lam(args, expr) ->

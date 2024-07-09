@@ -1,4 +1,4 @@
-defmodule Ast.BaseParserTest do
+defmodule Ast.Base.ParserTest do
   use ExUnit.Case
   doctest Ast.BaseParser
 
@@ -15,9 +15,6 @@ defmodule Ast.BaseParserTest do
     lit: 1,
     non_rec: 2,
     var: 1,
-  ]
-  import  Ast.BaseParser, only: [
-    expression: 0,
   ]
 
   test "parse 1" do
