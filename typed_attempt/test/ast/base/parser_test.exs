@@ -116,4 +116,12 @@ defmodule Ast.Base.ParserTest do
       lam([var(:i)], let(non_rec(var(:_), lit(:a)), var(:i)))
     ) = ast_r
   end
+
+  test "parse id = fn x -> x end" do
+    ast_r = Ast.Utils.parse(id = fn x -> x end)
+
+    assert Result.ok(
+      non_rec(var(:id), lam([var(:x)], var(:x)))
+    ) = ast_r
+  end
 end

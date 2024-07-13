@@ -34,13 +34,13 @@ defmodule Ast.Base.TrapTypingTest do
     succ = DT.fun([int], int)
     id = DT.fun([a], a)
     auto = DT.fun([id], id)
-    default = DT.unknown()
+    #default = DT.unknown()
     vars = %{
       :auto => auto,
       :succ => succ,
     }
     env = put_in(Ast.empty_state(), [Ast.Access.vars()], vars)
 
-    assert error(mismatched_types(_, _)) = Wrapped.ResultState.evalStateT(Ast.check(ast, default), env)
+    assert error(mismatched_types(^succ, ^id)) = Wrapped.ResultState.evalStateT(Ast.check(ast, id), env)
   end
 end

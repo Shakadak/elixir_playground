@@ -114,19 +114,94 @@ defmodule Ast do
           end
 
         app(e, args) ->
+          # For this application
+          # we want to override the type of e
+          # but not after
           match! infer(e) do
-            DT.fun(params_type, ^expected_type) ->
-            pure! Wrapped.ResultState.zipWithM_(args, params_type, &check(&1, &2))
+            DT.fun(params_types, output_type) ->
+              let c = CE.compute Workflow.ResultState do
+                #let _ = IO.inspect([infered: output_type, expected: expected_type], label: "pre unify")
+                do! unify(output_type, expected_type)
+                #let _ = IO.inspect([out: output_type, ins: params_types], label: "pre propagate")
+                pure! Wrapped.ResultState.mapM(params_types, &propagate/1)
+              end
+              let! params_type = local(c, %{tvars: %{}})
+              pure! Wrapped.ResultState.zipWithM_(args, params_type, &check(&1, &2))
 
-            DT.fun(_params_type, other_type) ->
-            pure! ResultState.throwError mismatched_types other_type, expected_type
+
+            other_type ->
+              pure! ResultState.throwError mismatched_types other_type, expected_type
           end
       end
     end
   end
 
-  def unify(_expected, _ast) do
+  def unify(infered, expected) do
+    CE.compute Workflow.ResultState do
+      match {infered, expected} do
+        {eq, eq} -> pure {}
+        {DT.rigid_variable(name), DT.type(_) = t} ->
+          do! Wrapped.ResultState.modify fn s -> put_in(s, [:tvars, name], t) end
+        {DT.rigid_variable(name), DT.fun(_, _) = t} ->
+          do! Wrapped.ResultState.modify fn s -> put_in(s, [:tvars, name], t) end
+        _ -> do! raise "unimplemented"
+      end
+    end
   end
+
+  def propagate(type) do
+    import Result
+    CE.compute Workflow.ResultState do
+      match type do
+        DT.type(t) -> pure DT.type(t)
+        DT.rigid_variable(name) = t ->
+          let! vars = ResultState.gets(&get_in(&1, [:tvars]))
+          Data.Map.fetch(vars, name)
+          |> match do
+            ok(t) -> pure t
+            error(_err) -> pure t
+            #error(err) -> pure! Wrapped.ResultState.throwError err
+          end
+
+        DT.fun(ins, out) ->
+          let! ins = Wrapped.ResultState.mapM(ins, &propagate/1)
+          let! out = propagate(out)
+          pure DT.fun(ins, out)
+
+        _ -> do! raise "unimplemented"
+      end
+    end
+  end
+
+  def local(m, state) do
+    require Transformer.StateT
+    fn s ->
+      m.(state)
+      |> Base.Result.bind(fn {a, _s2} -> Base.Result.pure({a, s}) end)
+    end
+    #CE.compute Workflow.ResultState, debug: true do
+    #  let! s = Wrapped.ResultState.get()
+    #  do! Wrapped.ResultState.put(state)
+    #  let! x = m
+    #  do! Wrapped.ResultState.put(s)
+    #  pure x
+    #end
+  end
+
+  #def locally(m, open, close) do
+  #  Transformer.StateT.mkStateT fn s ->
+  #    Transformer.StateT.runStateT(m, s)
+  #    |> Base.Result.bind(fn {a, s2} ->
+  #      Transformer.StateT.runStateT(m.(a), s2)
+  #    end)
+  #  end
+  #  #CE.compute Workflow.ResultState do
+  #  #  do! Wrapped.ResultState.withStateT(open)
+  #  #  let! x = k
+  #  #  do! Wrapped.ResultState.withStateT(close)
+  #  #  pure x
+  #  #end
+  #end
 
   @spec annotate(ast, :check | :synthesize, env) :: Result.t(any, any)
     when ast: any, env: any
