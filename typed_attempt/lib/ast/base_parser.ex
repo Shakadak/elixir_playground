@@ -38,7 +38,8 @@ defmodule Ast.BaseParser do
           pure Ast.Core.case([expr_ast], clauses_ast)
         end
 
-      ~m/fn #{...pat_list} -> #{expr} end/ ->
+      ~m/fn #{pat_list} -> #{expr} end/ ->
+        IO.inspect(pat_list, label: "fn with one clause")
         CE.compute Workflow.Result do
           let! pat_list_ast = Result.mapM(pat_list, &Ast.FromElixir.parse(&1, context, parsers))
           let! expr_ast = Ast.FromElixir.parse(expr, context, parsers)

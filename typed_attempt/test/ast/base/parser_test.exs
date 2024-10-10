@@ -124,4 +124,30 @@ defmodule Ast.Base.ParserTest do
       non_rec(var(:id), lam([var(:x)], var(:x)))
     ) = ast_r
   end
+
+  test "parse fn x when x > 3 -> true end" do
+    ast_r = Ast.Utils.parse(fn
+      x when x > 3 -> true
+    end)
+
+    assert Result.ok(lam([var(:arg@1)],
+      Ast.Core.case([var(:arg@1)], [
+        clause([var(:x)], [app(var(:>), [var(:x), lit(3)])], lit(true)),
+      ])
+    )) = ast_r
+  end
+
+  test "parse fn x when x > 3 -> true ; _ -> false end" do
+    ast_r = Ast.Utils.parse(fn
+      x when x > 3 -> true
+      _ -> false
+    end)
+
+    assert Result.ok(lam([var(:arg@1)],
+      Ast.Core.case([var(:arg@1)], [
+        clause([var(:x)], [app(var(:>), [var(:x), lit(3)])], lit(true)),
+        clause([var(:_)], [], lit(false)),
+      ])
+    )) = ast_r
+  end
 end
