@@ -17,6 +17,7 @@
     devShells.${system}.default = pkgs.mkShell {
       buildInputs = [
         pkgs.beam.packages.erlang_27.elixir_1_17
+        pkgs.beam.packages.erlang_27.elixir-ls
       ];
     };
 
