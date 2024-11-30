@@ -14,4 +14,8 @@ defmodule Ast.FromElixir do
   def apply_parser({m, f, as}, ast, context, parsers) do
     apply(m, f, [ast, context, parsers | as])
   end
+
+  def apply_parser(parser, ast, context, parsers) when is_function(parser, 3) do
+    apply(parser, [ast, context, parsers])
+  end
 end

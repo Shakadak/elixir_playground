@@ -37,10 +37,12 @@ defmodule Test.Basic do
   # deft len([]), do: 0
   # deft len([_ | xs]), do: 1 + len(xs)
 
+  # type map, V: [src, tgt], -: fn fn src -> tgt end, list(src) -> list(tgt) end
   # type map, V: [src, tgt], -: ((src -> tgt), list(src) -> list(tgt))
   # deft map(_, []), do: []
   # deft map(f, [x | xs]), do: [f.(x) | map(f, xs)]
 
+  # type plus1s, -: fn list(int()) -> list(int()) end
   # type plus1s, -: (list(int()) -> list(int()))
   # deft plus1s(xs), do: map(&plus1/1, xs)
 

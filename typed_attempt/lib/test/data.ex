@@ -6,6 +6,16 @@
 #     type f, -: (-> bool())
 #   end
 #
+#   data nat, (-> type()) do
+#     type zero, -: (-> nat())
+#     type succ, -: (nat() -> nat())
+#   end
+#
+#   data vector, ({a :: type()}, {n :: nat()} -> type()) do
+#     type nil, -: (-> vector(a, zero())
+#     type cons, -: (a, vector(a, n) -> vector(a, succ(n)))
+#   end
+#
 #   data wrap(a), do: type wrap, -: (a -> wrap(a))
 #
 #   data option(a) do

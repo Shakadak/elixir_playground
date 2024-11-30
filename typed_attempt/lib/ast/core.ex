@@ -69,7 +69,17 @@ defmodule Ast.Core do
     } end
   end
 
-  defmacro clause(pats, guards, expr) do
+  defmacro clause(pats, expr) do
+    quote do {
+      :clause,
+      unquote(pats),
+      unquote([]),
+      unquote(expr),
+      :_?,
+    } end
+  end
+
+  defmacro gclause(pats, guards, expr) do
     quote do {
       :clause,
       unquote(pats),

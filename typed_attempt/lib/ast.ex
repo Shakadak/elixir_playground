@@ -11,7 +11,8 @@ defmodule Ast do
 
   import  Ast.Core, only: [
     app: 2,
-    clause: 3,
+    clause: 2,
+    gclause: 3,
     lam: 2,
     # let: 2,
     lit: 1,
@@ -63,7 +64,11 @@ defmodule Ast do
   end
 
   def gen_var do
-    Wrapped.ResultState.state(&get_and_update_in(&1, [Ast.Access.seed()], fn seed -> {tvar_from_num(seed), seed + 1} end))
+    ResultState.state(&get_and_update_in(&1, [Ast.Access.seed()], fn seed -> {tvar_from_num(seed), seed + 1} end))
+  end
+
+  def put_var_type(var, type) do
+    ResultState.modify &put_in(&1, [Ast.Access.vars(), var], type)
   end
 
   def infer(ast) do
@@ -73,6 +78,9 @@ defmodule Ast do
       match ast do
         lit(x) when is_integer(x) ->
           pure DT.type(:integer)
+
+        lit(x) when is_atom(x) ->
+          pure DT.type(:atom)
 
         # If its a variable, we check if we have it in the env
         # If not, we synthesize a variable that needs to be filled later
@@ -85,12 +93,12 @@ defmodule Ast do
             error _ ->
               let! new_var = gen_var()
               let type = DT.variable(new_var)
-              do! Wrapped.ResultState.modify &put_in(&1, [Ast.Access.vars(), v], type)
+              do! ResultState.modify &put_in(&1, [Ast.Access.vars(), v], type)
               pure type
           end
 
         lam(args, expr) ->
-          let! args_t = Wrapped.ResultState.mapM(args, &infer/1)
+          let! args_t = ResultState.mapM(args, &infer/1)
           let! expr_t = infer(expr)
           pure DT.fun(args_t, expr_t)
       end
@@ -104,13 +112,13 @@ defmodule Ast do
           let! found = infer(ast)
           match found do
             ^expected_type -> pure {}
-            other_type -> pure! Wrapped.ResultState.throwError mismatched_types other_type, expected_type
+            other_type -> pure! ResultState.throwError mismatched_types other_type, expected_type
           end
 
         var(_) = ast ->
           match! infer(ast) do
             ^expected_type -> pure {}
-            other_type -> pure! Wrapped.ResultState.throwError mismatched_types other_type, expected_type
+            other_type -> pure! ResultState.throwError mismatched_types other_type, expected_type
           end
 
         app(e, args) ->
@@ -123,15 +131,34 @@ defmodule Ast do
                 #let _ = IO.inspect([infered: output_type, expected: expected_type], label: "pre unify")
                 do! unify(output_type, expected_type)
                 #let _ = IO.inspect([out: output_type, ins: params_types], label: "pre propagate")
-                pure! Wrapped.ResultState.mapM(params_types, &propagate/1)
+                pure! ResultState.mapM(params_types, &propagate/1)
               end
               let! params_type = local(c, %{tvars: %{}})
-              pure! Wrapped.ResultState.zipWithM_(args, params_type, &check(&1, &2))
+              pure! ResultState.zipWithM_(args, params_type, &check(&1, &2))
 
 
             other_type ->
               pure! ResultState.throwError mismatched_types other_type, expected_type
           end
+
+        lam(inputs, expr) ->
+          match expected_type do
+            DT.fun(inputs_types, out_type) ->
+              do! ResultState.zipWithM_(inputs, inputs_types, &Ast.Check.pattern/2)
+              pure! check(expr, out_type)
+
+            _other ->
+              pure! ResultState.throwError mismatched_types DT.fun(List.duplicate(DT.unknown(), length(inputs)), DT.unknown()), expected_type
+          end
+
+        Ast.Core.case(inputs, clauses) ->
+          let! inputs_types = ResultState.mapM(inputs, &infer/1)
+          pure! ResultState.mapM_(clauses, fn clause(pats, expr) ->
+            CE.compute Workflow.ResultState do
+              do! ResultState.zipWithM_(pats, inputs_types, &Ast.Check.pattern/2)
+              pure! check(expr, expected_type)
+            end
+          end)
       end
     end
   end
@@ -141,9 +168,9 @@ defmodule Ast do
       match {infered, expected} do
         {eq, eq} -> pure {}
         {DT.rigid_variable(name), DT.type(_) = t} ->
-          do! Wrapped.ResultState.modify fn s -> put_in(s, [:tvars, name], t) end
+          do! ResultState.modify fn s -> put_in(s, [:tvars, name], t) end
         {DT.rigid_variable(name), DT.fun(_, _) = t} ->
-          do! Wrapped.ResultState.modify fn s -> put_in(s, [:tvars, name], t) end
+          do! ResultState.modify fn s -> put_in(s, [:tvars, name], t) end
         _ -> do! raise "unimplemented"
       end
     end
@@ -160,11 +187,11 @@ defmodule Ast do
           |> match do
             ok(t) -> pure t
             error(_err) -> pure t
-            #error(err) -> pure! Wrapped.ResultState.throwError err
+            #error(err) -> pure! ResultState.throwError err
           end
 
         DT.fun(ins, out) ->
-          let! ins = Wrapped.ResultState.mapM(ins, &propagate/1)
+          let! ins = ResultState.mapM(ins, &propagate/1)
           let! out = propagate(out)
           pure DT.fun(ins, out)
 
@@ -180,10 +207,10 @@ defmodule Ast do
       |> Base.Result.bind(fn {a, _s2} -> Base.Result.pure({a, s}) end)
     end
     #CE.compute Workflow.ResultState, debug: true do
-    #  let! s = Wrapped.ResultState.get()
-    #  do! Wrapped.ResultState.put(state)
+    #  let! s = ResultState.get()
+    #  do! ResultState.put(state)
     #  let! x = m
-    #  do! Wrapped.ResultState.put(s)
+    #  do! ResultState.put(s)
     #  pure x
     #end
   end
@@ -196,9 +223,9 @@ defmodule Ast do
   #    end)
   #  end
   #  #CE.compute Workflow.ResultState do
-  #  #  do! Wrapped.ResultState.withStateT(open)
+  #  #  do! ResultState.withStateT(open)
   #  #  let! x = k
-  #  #  do! Wrapped.ResultState.withStateT(close)
+  #  #  do! ResultState.withStateT(close)
   #  #  pure x
   #  #end
   #end
@@ -229,7 +256,7 @@ defmodule Ast do
           pure Ast.Core.Typed.case_t(exprs_t, clauses_t, DT.unknown())
         end
 
-      clause(pats, guards, expr) ->
+      gclause(pats, guards, expr) ->
         CE.compute Workflow.Result do
           let! pats_t = Result.mapM(pats, &annotate(&1, mode, env))
           let! guards_t = Result.mapM(guards, &annotate(&1, mode, env))
