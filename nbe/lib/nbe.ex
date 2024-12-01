@@ -1,5 +1,7 @@
 defmodule Nbe do
   import Clos
+  import N.Ap
+  import N.Var
 
   @type environment :: Keyword.t
   @type symbol :: atom
@@ -42,7 +44,9 @@ defmodule Nbe do
   @spec val(environment, expression) :: value
   def val(p, e) do
     case e do
-      [:lam, [x], b] -> clos(p, x, b)
+      [f, [x], b] when f in [:lam, :λ] ->
+        clos(p, x, b)
+
       x when is_atom(x) ->
         xv = assv(x, p)
         if xv do
@@ -56,11 +60,14 @@ defmodule Nbe do
     end
   end
 
-  @spec do_ap(clos, value) :: value
-  def do_ap(clos, arg) do
-    case clos do
-      %Clos{env: p, var: x, body: b} ->
+  @spec do_ap(value, value) :: value
+  def do_ap(fun, arg) do
+    case fun do
+      clos(p, x, b) ->
         val(extend(p, x, arg), b)
+
+      _neutral_fun ->
+        n_ap(fun, arg)
     end
   end
 
@@ -73,7 +80,7 @@ defmodule Nbe do
         run_program(extend(p, x, v), rest)
 
       [e | rest] ->
-        {} = displayln(val(p, e))
+        {} = displayln(norm(p, e))
         run_program(p, rest)
     end
   end
@@ -88,5 +95,65 @@ defmodule Nbe do
     else
       x
     end
+  end
+
+  @spec read_back(list(symbol), value) :: expression
+  def read_back(used_names, v) do
+    case v do
+      clos(p, x, body) ->
+        y = freshen(used_names, x)
+        neutral_y = n_var(y)
+        [:λ, [y], read_back(cons(y, used_names), val(extend(p, x, neutral_y), body))]
+
+      n_var(x) ->
+        x
+
+      n_ap(rator, rand) ->
+        [read_back(used_names, rator), read_back(used_names, rand)]
+    end
+  end
+
+  @spec norm(environment, expression) :: expression
+  def norm(p, e) do
+    read_back([], val(p, e))
+  end
+
+  @spec with_numerals(expression) :: expression
+  def with_numerals(e) do
+    [
+      [:define, :church_zero,
+        [:λ, [:f], [:λ, [:x], :x]]],
+      [:define, :church_add1,
+        [:λ, [:n_1],
+          [:λ, [:f],
+            [:λ, [:x],
+              [:f, [[:n_1, :f], :x]]]]]],
+      e
+    ]
+  end
+
+  def zero?(n), do: n == 0
+
+  def positive?(n), do: n > 0
+
+  @spec to_church(non_neg_integer) :: expression
+  def to_church(n) do
+    cond do
+      zero?(n) ->
+        :church_zero
+
+      positive?(n) ->
+        church_of_n_minus_1 = to_church(n - 1)
+        [:church_add1, church_of_n_minus_1]
+    end
+  end
+
+  @spec church_add :: expression
+  def church_add do
+    [:λ, [:j],
+      [:λ, [:k],
+        [:λ, [:f],
+          [:λ, [:x],
+            [[:j, :f], [[:k, :f], :x]]]]]]
   end
 end

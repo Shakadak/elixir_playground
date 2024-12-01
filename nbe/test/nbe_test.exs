@@ -17,48 +17,40 @@ defmodule NbeTest do
   test "val" do
     import Clos
 
-    assert clos([], :x, [:lam, [:y], :y]) =
-      val([], [:lam, [:x], [:lam, [:y], :y]])
+    assert clos([], :x, [:λ, [:y], :y]) =
+      val([], [:λ, [:x], [:λ, [:y], :y]])
 
     assert clos([], :x, :x) =
-      val([], [[:lam, [:x], :x], [:lam, [:x], :x]])
+      val([], [[:λ, [:x], :x], [:λ, [:x], :x]])
 
     assert_raise RuntimeError, "Unknown variable :x", fn -> val([], :x) end
   end
 
   test "run-program" do
-    import Clos
-
-    cmp = inspect(
-      clos([{:id, clos([], :x, :x)}], :y, [:lam, [:z], [:z, :y]]),
+    expected = inspect(
+      [:λ, [:y], [:λ, [:z], [:z, :y]]],
       pretty: true
     ) <> "\n"
-    assert ^cmp = capture_io fn ->
-      run_program([], [[:define, :id, [:lam, [:x], :x]],
-        [:id, [:lam, [:y], [:lam, [:z], [:z, :y]]]]])
+
+    assert ^expected = capture_io fn ->
+      run_program([], [[:define, :id, [:λ, [:x], :x]],
+        [:id, [:λ, [:y], [:λ, [:z], [:z, :y]]]]])
     end
 
-    cmp = inspect(
-      clos(
-        [
-          {:n, clos([{:n, clos([], :f, [:lam, [:x], :x])},{:z, clos([], :f, [:lam, [:x], :x])}], :f, [:lam, [:x], [:f, [[:n, :f], :x]]]) },
-          {:z, clos([], :f, [:lam, [:x], :x])},
-        ],
-        :f,
-        [:lam, [:x], [:f, [[:n, :f], :x]]]
-      ),
+    expected = inspect(
+      [:λ, [:f], [:λ, [:x], [:f, [:f, :x]]]],
       pretty: true
     ) <> "\n"
 
-    assert ^cmp = capture_io fn ->
+    assert ^expected = capture_io fn ->
       run_program([], [
         [:define, :z,
-          [:lam, [:f],
-            [:lam, [:x], :x]]],
+          [:λ, [:f],
+            [:λ, [:x], :x]]],
         [:define, :s,
-          [:lam, [:n],
-            [:lam, [:f],
-              [:lam, [:x],
+          [:λ, [:n],
+            [:λ, [:f],
+              [:λ, [:x],
                 [:f, [[:n, :f], :x]]]]]],
         [:s, [:s, :z]],
       ])
@@ -70,5 +62,35 @@ defmodule NbeTest do
     assert :"x**" = freshen([:x, :"x*"], :x)
     assert :"y*" = freshen([:x, :y, :z], :y)
 
+  end
+
+  test "read-back" do
+    assert [:λ, [:y], :y] =
+      read_back([], val([], [[:λ, [:x], [:λ, [:y], [:x, :y]]], [:λ, [:x], :x]]))
+  end
+
+  test "with-numeral" do
+    expected = inspect([:λ, [:f], [:λ, [:x], :x]]) <> "\n"
+    assert ^expected = capture_io fn ->
+      run_program([], with_numerals(to_church(0)))
+    end
+
+    expected = inspect([:λ, [:f], [:λ, [:x], [:f, :x]]]) <> "\n"
+    assert ^expected = capture_io fn ->
+      run_program([], with_numerals(to_church(1)))
+    end
+
+    expected = inspect([:λ, [:f], [:λ, [:x], [:f, [:f, [:f, [:f, :x]]]]]]) <> "\n"
+    assert ^expected = capture_io fn ->
+      run_program([], with_numerals(to_church(4)))
+    end
+  end
+
+  test "church-add" do
+    expected = inspect([:λ, [:f], [:λ, [:x], [:f, [:f, [:f, [:f, :x]]]]]]) <> "\n"
+
+    assert ^expected = capture_io fn ->
+      run_program([], with_numerals([[church_add(), to_church(2)], to_church(2)]))
+    end
   end
 end
