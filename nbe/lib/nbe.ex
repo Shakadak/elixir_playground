@@ -44,7 +44,7 @@ defmodule Nbe do
 
   @spec extend(environment, symbol, value) :: environment
   def extend(p, x, v), do:
-    cons(cons(x, v), p)
+    cons({x, v}, p)
 
   @spec val(environment, expression) :: value
   def val(p, e) do
@@ -261,6 +261,27 @@ defmodule Nbe do
           else
             (stop e, "Synthesized type #{inspect(t2)} where type #{inspect(t)} was expected")
           end))
+    end
+  end
+
+  # 5.3 Definitions
+
+  @type define :: any # [:define, atom, expression]
+  @spec check_program(context, prog) :: perhaps(context)
+    when prog: [expression | define]
+  def check_program(gamma, prog) do
+    case prog do
+      [] ->
+        (go gamma)
+
+      [[:define, x, e] | rest] ->
+        (go_on [[t, (synth gamma, e)]],
+          (check_program (extend gamma, x, t), rest))
+
+      [e | rest] ->
+        (go_on [[t, (synth gamma, e)]],
+          ((IO.puts "#{inspect(e)} has type #{inspect(t)}")
+            (check_program gamma, rest)))
     end
   end
 end

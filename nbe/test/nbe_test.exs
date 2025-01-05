@@ -150,4 +150,40 @@ defmodule NbeTest do
             [:λ, [:sum], [:add1, :sum]]]]]],
       [:->, :Nat, [:->, :Nat, :Nat]])
   end
+
+  # 5.3 Definitions
+
+  test "check-program" do
+    program = [
+      [:define, :three,
+        [:the, :Nat,
+          [:add1, [:add1, [:add1, :zero]]]]],
+      [:define, :+,
+        [:the, [:->, :Nat, [:->, :Nat, :Nat]],
+        [:λ, [:n],
+          [:λ, [:k],
+            [:rec, :Nat, :n,
+              :k,
+              [:λ, [:pred],
+                [:λ, [:almost_sum],
+                  [:add1, :almost_sum]]]]]]]],
+      [:+, :three],
+      [[:+, :three], :three],
+    ]
+
+    {result, output} =
+      with_io(fn -> (check_program [], program) end)
+
+    expected_output =
+      """
+      #{inspect([:+, :three])} has type #{inspect([:->, :Nat, :Nat])}
+      #{inspect([[:+, :three], :three])} has type #{inspect(:Nat)}
+      """
+
+    expected_result =
+      (go [{:+, [:->, :Nat, [:->, :Nat, :Nat]]}, {:three, :Nat}])
+
+    assert result == expected_result
+    assert output == expected_output
+  end
 end
