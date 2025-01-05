@@ -4,6 +4,10 @@ defmodule Go do
   ]
   defstruct @enforce_keys
 
+  @type t(a) :: %__MODULE__{
+    result: a,
+  }
+
   defmacro go(result) do
     quote do
       %unquote(__MODULE__){
@@ -11,10 +15,6 @@ defmodule Go do
       }
     end
   end
-
-  @type t :: %__MODULE__{
-    result: any,
-  }
 
   defmacro go_on(chain, result) do
     go_on_go(chain, result)

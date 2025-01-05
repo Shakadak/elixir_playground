@@ -5,6 +5,8 @@ defmodule NbeTest do
   import ExUnit.CaptureIO
 
   import Nbe
+  import Go
+  import Stop
 
   test "assv" do
     {:x, "apples"} =
@@ -95,8 +97,6 @@ defmodule NbeTest do
   end
 
   test "go-on" do
-    import Go
-    import Stop
     bigger_than_two = fn n ->
       if n > 2 do go(n) else stop(n, "Not greater than two") end
     end
@@ -123,18 +123,31 @@ defmodule NbeTest do
   # 5.1 Types
 
   test "type=? and type?" do
-    assert true = type?(:nat)
-    assert false == type?([:nat])
-    assert true = type?([:->, :nat, :nat])
-    assert true = type_eq?(:nat, :nat)
+    assert true = type?(:Nat)
+    assert false == type?([:Nat])
+    assert true = type?([:->, :Nat, :Nat])
+    assert true = type_eq?(:Nat, :Nat)
     assert true = type_eq?(
-      [:->, :nat, [:->, :nat, :nat]],
-      [:->, :nat, [:->, :nat, :nat]])
+      [:->, :Nat, [:->, :Nat, :Nat]],
+      [:->, :Nat, [:->, :Nat, :Nat]])
     assert false == type_eq?(
-      [:->, [:->, :nat, :nat], :nat],
-      [:->, :nat, [:->, :nat, :nat]]
+      [:->, [:->, :Nat, :Nat], :Nat],
+      [:->, :Nat, [:->, :Nat, :Nat]]
     )
   end
 
   # 5.2 Cheking Types
+
+  test "synth and check" do
+    assert (go :Nat) = (synth [cons(:x, :Nat)], :x)
+    assert (go :ok) = (check [], :zero, :Nat)
+    assert (go :ok) = (check [], [:add1, :zero], :Nat)
+    assert (go :ok) = (check [], [:λ, [:x], :x], [:->, :Nat, :Nat])
+    assert (go :ok) = (check [],
+      [:λ, [:j],
+        [:λ, [:k],
+          [:rec, :Nat, :j, :k, [:λ, [:n_1],
+            [:λ, [:sum], [:add1, :sum]]]]]],
+      [:->, :Nat, [:->, :Nat, :Nat]])
+  end
 end

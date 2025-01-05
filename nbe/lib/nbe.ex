@@ -2,6 +2,8 @@ defmodule Nbe do
   import Clos
   import N.Ap
   import N.Var
+  import Go
+  import Stop
 
   @type environment :: Keyword.t
   @type symbol :: atom
@@ -10,6 +12,9 @@ defmodule Nbe do
   @type void :: {}
   @type clos :: Clos.t
   @type neutral :: any
+  @type context :: any
+  @type perhaps(a) :: Go.t(a) | Stop.t
+  @type type :: any
 
   @spec assv(any, list(tuple)) :: tuple | false
   def assv(k, lst) do
@@ -159,17 +164,103 @@ defmodule Nbe do
 
   # 5.1 Types
 
+  @spec type_eq?(any, any) :: boolean
   def type_eq?(t1, t2) do
     case {t1, t2} do
-      {:nat, :nat} -> true
+      {:Nat, :Nat} -> true
       {[:->, a1, b1], [:->, a2, b2]} ->
         type_eq?(a1, a2) and type_eq?(b1, b2)
       {_, _} -> false
     end
   end
 
+  @spec type?(any) :: boolean
   def type?(t), do: type_eq?(t, t)
 
   # 5.2 Checking Types
 
+  @spec synth(context, expression) :: perhaps(type)
+  def synth(context, expression) do
+    case expression do
+      # Type annotations
+      [:the, t, e2] ->
+        if not type?(t) do
+          stop(expression,  "Invalid type #{inspect(t)}")
+        else
+          go_on([[_, check(context, e2, t)]],
+            go(t))
+        end
+
+      # Recursion on Nat
+      [:rec, type, target, base, step] ->
+        go_on([
+          [target_t, synth(context, target)],
+          [_, if type_eq?(target_t, :Nat) do
+            go(:ok)
+          else
+            stop(target, "Expected Nat, got #{inspect(target_t)}")
+          end],
+          [_, (check context, base, type)],
+          [_, (check context, step, [:->, :Nat, [:->, type, type]])],
+        ],
+          go(type)
+        )
+
+      x when is_atom(x) and x not in [:the, :rec, :λ, :zero, :add1] ->
+        case assv(x, context) do
+          false -> (stop x, "Variable not found")
+          {_, t} -> (go t)
+        end
+
+      [rator, rand] ->
+        go_on([[rator_t, (synth context, rator)]],
+          case rator_t do
+            [:->, a, b] ->
+              go_on([[_, (check context, rand, a)]],
+                (go b))
+
+            _ ->
+              (stop rator, "Not a function type: #{inspect(rator_t)}")
+          end
+        )
+    end
+  end
+
+  @spec check(context, expression, type) :: perhaps(:ok)
+  def check(gamma, e, t) do
+    case e do
+      :zero ->
+        if (type_eq? t, :Nat) do
+          (go :ok)
+        else
+          (stop e, "Tried to use #{inspect(t)} for zero")
+        end
+
+      [:add1, n] ->
+        if (type_eq? t, :Nat) do
+          (go_on [[_, (check gamma, n, :Nat)]],
+            (go :ok))
+        else
+          (stop e, "Tried to use #{inspect(t)} for add1")
+        end
+
+      [:λ, [x], b] ->
+        case t do
+          [:->, ta, tb] ->
+            (go_on [[_, (check (extend gamma, x, ta), b, tb)]],
+              (go :ok))
+
+          non_arrow ->
+            (stop e, "Instead of :-> type, got #{inspect(non_arrow)}")
+        end
+
+      _other ->
+        (go_on [[t2, (synth gamma, e)]],
+          (if (type_eq? t, t2) do
+            (go :ok)
+          else
+            (stop e, "Synthesized type #{inspect(t2)} where type #{inspect(t)} was expected")
+          end))
+    end
+  end
 end
