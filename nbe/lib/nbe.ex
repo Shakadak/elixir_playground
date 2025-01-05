@@ -2,8 +2,14 @@ defmodule Nbe do
   import Clos
   import N.Ap
   import N.Var
+  import N.Rec
   import Go
   import Stop
+  import The
+  import Zero
+  import Add1
+  import Neu
+  import Def
 
   @type environment :: Keyword.t
   @type symbol :: atom
@@ -15,6 +21,7 @@ defmodule Nbe do
   @type context :: any
   @type perhaps(a) :: Go.t(a) | Stop.t
   @type type :: any
+  @type definitions :: [Def.t]
 
   @spec assv(any, list(tuple)) :: tuple | false
   def assv(k, lst) do
@@ -25,10 +32,16 @@ defmodule Nbe do
     end
   end
 
-  @spec cdr(tuple) :: any
+  @doc """
+  Returns the second element of the pair `p`.
+  """
+  @spec cdr({any, a}) :: a when a: any
   def cdr({_, y}), do: y
 
-  @spec car(tuple) :: any
+  @doc """
+  Returns the first element of the pair `p`.
+  """
+  @spec car({a, any}) :: a when a: var
   def car({x, _}), do: x
 
   def cons(a, d) when is_list(d), do: [a | d]
@@ -282,6 +295,140 @@ defmodule Nbe do
         (go_on [[t, (synth gamma, e)]],
           ((IO.puts "#{inspect(e)} has type #{inspect(t)}")
             (check_program gamma, rest)))
+    end
+  end
+
+  # 6 Typed Normalization by Evaluation
+
+  # 6.1 Values for Typed NbE
+
+  # 6.2 The Evaluator
+
+  @spec tval(environment, expression) :: value
+  def tval(rho, e) do
+    case e do
+      [:the, _type, expr] ->
+        (tval rho, expr)
+
+      :zero -> zero()
+
+      [:add1, n] -> (add1 (tval rho, n))
+
+
+      x when is_atom(x) and x not in [:the, :zero, :add1, :λ, :rec] ->
+        xv = assv(x, rho)
+        if xv do
+          (cdr xv)
+        else
+          raise "Unknown variable #{inspect(x)}"
+        end
+
+      [:λ, [x], b] ->
+        (clos rho, x, b)
+
+      [:rec, type, target, base, step] ->
+        (tdo_rec type, (tval rho, target), (tval rho, base), (tval rho, step))
+
+      [rator, rand] ->
+        (tdo_ap (tval rho, rator), (tval rho, rand))
+    end
+  end
+
+  @spec tdo_ap(value, value) :: value
+  def tdo_ap(fun, arg) do
+    case fun do
+      (clos rho, x, e) ->
+        (tval (extend rho, x, arg), e)
+
+      (neu [:->, ta, tb], ne) ->
+        (neu tb, (n_ap ne, (the ta, arg)))
+    end
+  end
+
+  @spec tdo_rec(type :: type, target :: value, base :: value, step :: value) :: value
+  def tdo_rec(type, target, base, step) do
+    case target do
+      zero() -> base
+      (add1 n) ->
+        (tdo_ap (tdo_ap step, n),
+               (tdo_rec type, n, base, step))
+
+      (neu :Nat, ne) ->
+        (neu type,
+          (n_rec type,
+                 ne,
+                 (the type, base),
+                 (the [:->, :Nat, [:->, type, type]], step)))
+    end
+  end
+
+  # 6.3 Typed Read-Back
+
+  @spec tread_back(list(symbol), type, value) :: expression
+  def tread_back(used_names, type, value) do
+    case type do
+      :Nat ->
+        case value do
+          zero() -> :zero
+          (add1 n) -> [:add1, (tread_back used_names, :Nat, n)]
+          (neu _, ne) ->
+            (tread_back_neutral used_names, ne)
+        end
+
+      [:->, ta, tb] ->
+        x = (freshen used_names, :x)
+        [:λ, [x], (tread_back (cons x, used_names),
+          tb,
+          (tdo_ap value, (neu ta, (n_var x))))]
+    end
+  end
+
+  @spec tread_back_neutral(list(symbol), neutral) :: expression
+  def tread_back_neutral(used_names, ne) do
+    case ne do
+      (n_var x) -> x
+
+      (n_ap fun, (the arg_type, arg)) ->
+        [(tread_back_neutral used_names, fun), (tread_back used_names, arg_type, arg)]
+
+      (n_rec type, target, (the base_type, base), (the step_type, step)) ->
+        [:rec, type,
+          (tread_back_neutral used_names, target),
+          (tread_back used_names, base_type, base),
+          (tread_back used_names, step_type, step),]
+    end
+  end
+
+  # 6.4 Programs With Definitions
+
+  @spec defs2ctx(definitions) :: context
+  @spec defs2env(definitions) :: environment
+
+  def defs2ctx(big_delta) do
+    Enum.map(big_delta, fn {x, (def! type, _)} -> {x, type} end)
+  end
+
+  def defs2env(big_delta) do
+    Enum.map(big_delta, fn {x, (def! _, value)} -> {x, value} end)
+  end
+
+  @spec trun_program(definitions, [define | expression]) :: perhaps(definitions)
+  def trun_program(big_delta, prog) do
+    case prog do
+      [] -> (go big_delta)
+
+      [[:define, x, e] | rest] ->
+        (go_on [[type, (synth (defs2ctx big_delta), e)]],
+          (trun_program (extend big_delta, x, (def! type, (tval (defs2env big_delta), e))),
+            rest))
+
+      [e | rest] ->
+        gamma = (defs2ctx big_delta)
+        rho = (defs2env big_delta)
+        (go_on [[type, (synth gamma, e)]], (
+          v = (tval rho, e)
+          IO.puts("[:the, #{inspect(type)},\n  #{inspect((tread_back Enum.map(gamma, &car/1), type, v))}]")
+          (trun_program big_delta, rest)))
     end
   end
 end

@@ -7,6 +7,8 @@ defmodule NbeTest do
   import Nbe
   import Go
   import Stop
+  import Def
+  import Clos
 
   test "assv" do
     {:x, "apples"} =
@@ -17,8 +19,6 @@ defmodule NbeTest do
   end
 
   test "val" do
-    import Clos
-
     assert clos([], :x, [:λ, [:y], :y]) =
       val([], [:λ, [:x], [:λ, [:y], :y]])
 
@@ -182,6 +182,50 @@ defmodule NbeTest do
 
     expected_result =
       (go [{:+, [:->, :Nat, [:->, :Nat, :Nat]]}, {:three, :Nat}])
+
+    assert result == expected_result
+    assert output == expected_output
+  end
+
+  # 6 Typed Normalization by Evaluation
+
+  # 6.1 Values for Typed NbE
+
+  # 6.2 The Evaluator
+
+  # 6.3 Typed Read-Back
+
+  # 6.4 Programs With Definitions
+
+  test "typed run-program" do
+    program = [
+      [:define, :+,
+        [:the, [:->, :Nat, [:->, :Nat, :Nat]],
+        [:λ, [:x],
+          [:λ, [:y],
+              [:rec, :Nat, :x,
+              :y,
+              [:λ, [:_],
+                  [:λ, [:sum],
+                    [:add1, :sum]]]]]]]],
+      :+,
+      [:+, [:add1, [:add1, :zero]]],
+      [[:+, [:add1, [:add1, :zero]]], [:add1, :zero]],
+    ]
+
+    {result, output} = with_io fn -> (trun_program [], program) end
+
+    expected_result = (go [{:+, (def! [:->, :Nat, [:->, :Nat, :Nat]], (clos [], :x, [:λ, [:y], [:rec, :Nat, :x, :y, [:λ, [:_], [:λ, [:sum], [:add1, :sum]]]]]))}])
+
+    expected_output =
+      """
+      [:the, [:->, :Nat, [:->, :Nat, :Nat]],
+        [:λ, [:x], [:λ, [:"x*"], [:rec, :Nat, :x, :"x*", [:λ, [:"x**"], [:λ, [:"x***"], [:add1, :"x***"]]]]]]]
+      [:the, [:->, :Nat, :Nat],
+        [:λ, [:x], [:add1, [:add1, :x]]]]
+      [:the, :Nat,
+        [:add1, [:add1, [:add1, :zero]]]]
+      """
 
     assert result == expected_result
     assert output == expected_output
