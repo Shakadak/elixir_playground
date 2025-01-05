@@ -93,4 +93,48 @@ defmodule NbeTest do
       run_program([], with_numerals([[church_add(), to_church(2)], to_church(2)]))
     end
   end
+
+  test "go-on" do
+    import Go
+    import Stop
+    bigger_than_two = fn n ->
+      if n > 2 do go(n) else stop(n, "Not greater than two") end
+    end
+
+    assert go(9) = go_on([
+      [x, bigger_than_two.(4)],
+      [y, bigger_than_two.(5)],
+    ],
+      (go(x + y)))
+
+    assert stop(1, "Not greater than two") = go_on([
+      [x, bigger_than_two.(1)],
+      [y, bigger_than_two.(5)],
+    ],
+      (go(x + y)))
+
+    assert stop(-3, "Not greater than two") = go_on([
+      [x, bigger_than_two.(4)],
+      [y, bigger_than_two.(-3)],
+    ],
+      (go(x + y)))
+  end
+
+  # 5.1 Types
+
+  test "type=? and type?" do
+    assert true = type?(:nat)
+    assert false == type?([:nat])
+    assert true = type?([:->, :nat, :nat])
+    assert true = type_eq?(:nat, :nat)
+    assert true = type_eq?(
+      [:->, :nat, [:->, :nat, :nat]],
+      [:->, :nat, [:->, :nat, :nat]])
+    assert false == type_eq?(
+      [:->, [:->, :nat, :nat], :nat],
+      [:->, :nat, [:->, :nat, :nat]]
+    )
+  end
+
+  # 5.2 Cheking Types
 end

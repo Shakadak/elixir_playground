@@ -156,4 +156,20 @@ defmodule Nbe do
           [:λ, [:x],
             [[:j, :f], [[:k, :f], :x]]]]]]
   end
+
+  # 5.1 Types
+
+  def type_eq?(t1, t2) do
+    case {t1, t2} do
+      {:nat, :nat} -> true
+      {[:->, a1, b1], [:->, a2, b2]} ->
+        type_eq?(a1, a2) and type_eq?(b1, b2)
+      {_, _} -> false
+    end
+  end
+
+  def type?(t), do: type_eq?(t, t)
+
+  # 5.2 Checking Types
+
 end

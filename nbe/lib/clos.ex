@@ -11,7 +11,7 @@ defmodule Clos do
       %unquote(__MODULE__){
         env: unquote(env),
         var: unquote(var),
-        body: unquote(body)
+        body: unquote(body),
       }
     end
   end
