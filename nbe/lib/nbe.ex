@@ -1,26 +1,32 @@
 defmodule Nbe do
-  import Clos
-  import N.Ap
-  import N.Var
-  import N.Rec
-  import Go
-  import Stop
-  import The
-  import Zero
-  import Add1
-  import Neu
-  import Def
+  import PatternMetonyms, only: [
+    view: 2,
+  ]
 
+  require Struct
+
+
+  Struct.mk clos(env: environment, var: symbol, body: any)
+  Struct.mk zero
+  Struct.mk add1(pred: value)
+  Struct.mk n_ap(rator: neutral, rand: value)
+  Struct.mk n_rec(type: type, target: neutral, base: norm, step: norm)
+  Struct.mk n_var(name: symbol)
+  Struct.mk go(result: any)
+  Struct.mk stop(expr: expression, message: String.t)
+  Struct.mk the(type: type, value: value)
+  Struct.mk def!(type: type, value: value)
+  Struct.mk neu(type: type, neu: neutral)
   @type environment :: Keyword.t
   @type symbol :: atom
   @type value :: any
   @type expression :: any
   @type void :: {}
-  @type clos :: Clos.t
   @type neutral :: any
   @type context :: any
-  @type perhaps(a) :: Go.t(a) | Stop.t
+  @type perhaps(_a) :: go | stop
   @type type :: any
+  @type norm :: any
   @type definitions :: [Def.t]
 
   @spec assv(any, list(tuple)) :: tuple | false
@@ -174,6 +180,28 @@ defmodule Nbe do
           [:λ, [:x],
             [[:j, :f], [[:k, :f], :x]]]]]]
   end
+
+  # 4 Error Handling
+
+  defmacro go_on(chain, result) do
+    go_on_go(chain, result)
+  end
+
+  def go_on_go([], result) do
+    result
+  end
+
+  def go_on_go([[pat0, e0] | rest], result) do
+    quote generated: true do
+      case unquote(e0) do
+        go(unquote(pat0)) -> go_on(unquote(rest), unquote(result))
+        go(v) -> raise "go_on: Pattern did not match value #{inspect(v)}"
+        stop(expr, msg) -> stop(expr, msg)
+      end
+    end
+  end
+
+  # 5 Bidirectional Type Checking
 
   # 5.1 Types
 
@@ -431,4 +459,115 @@ defmodule Nbe do
           (trun_program big_delta, rest)))
     end
   end
+
+  # 7 A Tiny Piece of Pie
+
+  # 7.1 The Language
+
+  # 7.1.1 Identifiers
+
+  @spec keywords :: [symbol]
+  def keywords do
+    [
+      :define,
+      :U,
+      :Nat, :zero, :add1, :ind_Nat,
+      :Σ, :Sigma, :cons, :car, :cdr,
+      :Π, :Pi, :λ, :lambda,
+      :=, :same, :replace,
+      :Trivial, :sole,
+      :Absurd, :ind_Absurd,
+      :Atom, :quote,
+      :the,
+    ]
+  end
+
+  @spec keyword?(any) :: boolean
+  def keyword?(x) do
+    x in keywords()
+  end
+
+  @spec symbol?(any) :: boolean
+  def symbol?(x), do: is_atom(x)
+
+  @spec var?(any) :: boolean
+  def var?(x) do
+    symbol?(x) and not keyword?(x)
+  end
+
+  # 7.1.2 Program α-equivalence
+
+  @spec α_equiv?(expression, expression) :: boolean
+  def α_equiv?(e1, e2) do
+    (α_equiv_aux e1, e2, [], [])
+  end
+
+  def eqv?(x, y), do: x === y
+
+  def gensym(base \\ "g") do
+    :"#{base}#{:erlang.unique_integer([:positive])}"
+  end
+
+  @spec α_equiv_aux(expression, expression, [{symbol, symbol}], [{symbol, symbol}]) :: boolean
+  def α_equiv_aux(e1, e2, xs1, xs2) do
+    view {e1, e2} do
+      {kw, kw} when (keyword? kw) ->
+        true
+
+      {x, y} when (var? x) and (var? y) ->
+        case {(assv x, xs1), (assv y, xs2)} do
+          {false, false} -> (eqv? x, y)
+          {{_, b1}, {_, b2}} -> (eqv? b1, b2)
+          {_, _} -> false
+        end
+
+      {[:λ, [x], b1], [:λ, [y], b2]} ->
+        fresh = gensym()
+        bigger1 = (cons {x, fresh}, xs1)
+        bigger2 = (cons {y, fresh}, xs2)
+        (α_equiv_aux b1, b2, bigger1, bigger2)
+
+      {[:Π, [{x, ta1}], tb1], [:Π, [{y, ta2}], tb2]} ->
+        (α_equiv_aux ta1, ta2, xs1, xs2)
+        and (
+            fresh = gensym()
+            bigger1 = (cons {x, fresh}, xs1)
+            bigger2 = (cons {y, fresh}, xs2)
+            (α_equiv_aux tb1, tb2, bigger1, bigger2)
+          )
+
+      {[:Σ, [{x, ta1}], tb1], [:Σ, [{y, ta2}], tb2]} ->
+        (α_equiv_aux ta1, ta2, xs1, xs2)
+        and (
+            fresh = gensym()
+            bigger1 = (cons {x, fresh}, xs1)
+            bigger2 = (cons {y, fresh}, xs2)
+            (α_equiv_aux tb1, tb2, bigger1, bigger2)
+          )
+
+      {x, y} when is_atom(x) and is_atom(y) ->
+        (eqv? x, y)
+
+      # This, together with read_back_norm, implements the η law for Absurd.
+      {[:the, :Absurd, e1], [:the, :Absurd, e2]} ->
+        true
+
+      {[op | args1], [op | args2]} when keyword?(op) ->
+        ((length args1) == (length args2))
+        and (Enum.all?(Stream.zip_with(args1, args2, &(α_equiv_aux &1, &2, xs1, xs2))))
+
+      {[rator1, rand1], [rator2, rand2]} ->
+        (α_equiv_aux rator1, rator2, xs1, xs2)
+        and (α_equiv_aux rator1, rator2, xs1, xs2)
+
+      {_, _} ->
+        false
+    end
+  end
+
+  # 7.2 Values and Normalization
+
+  # 7.2.1 The Values
+
+  Struct.mk absurd
 end

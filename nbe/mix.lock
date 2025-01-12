@@ -1,0 +1,4 @@
+%{
+  "circe": {:hex, :circe, "0.2.1", "6358416183906ec2d71e0ddc28ed87dd4c44cbd0d0b01880132acaf39af68109", [:mix], [], "hexpm", "001044967eab5f4b7402fd47a7294c1a1a97d753f43291288ba2e5a5c2238fe0"},
+  "pattern_metonyms": {:hex, :pattern_metonyms, "0.8.0", "29eaa5fe3f6118aeb10352e1ef5bf165973c460fa29283078dfad6fa4312edbd", [:mix], [{:circe, "~> 0.2", [hex: :circe, repo: "hexpm", optional: false]}], "hexpm", "75ec848279b697a873a7dca9a87cef206114cd0f0b2144290630276ef02210a3"},
+}

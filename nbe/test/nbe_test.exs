@@ -5,10 +5,6 @@ defmodule NbeTest do
   import ExUnit.CaptureIO
 
   import Nbe
-  import Go
-  import Stop
-  import Def
-  import Clos
 
   test "assv" do
     {:x, "apples"} =
@@ -230,4 +226,16 @@ defmodule NbeTest do
     assert result == expected_result
     assert output == expected_output
   end
+
+  # 7 A Tiny Piece of Pie
+
+  # 7.1 The Language
+
+  # 7.1.1 Identifiers
+
+  # 7.1.2 Program α-equivalence
+
+  # 7.2 Values and Normalization
+
+  # 7.2.1 The Values
 end
