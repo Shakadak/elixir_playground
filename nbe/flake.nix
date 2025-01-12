@@ -12,12 +12,10 @@
     in
     {
 
-    # beam.packages.erlang_27.elixir_1_17
-    # packages.x86_64-linux.hello = nixpkgs.legacyPackages.x86_64-linux.hello;
     devShells.${system}.default = pkgs.mkShell {
       buildInputs = [
-        pkgs.beam.packages.erlang_27.elixir_1_17
-        pkgs.beam.packages.erlang_27.elixir-ls
+        pkgs.beam.packages.erlang.elixir
+        pkgs.beam.packages.erlang.elixir-ls
       ];
     };
 
