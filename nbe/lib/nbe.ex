@@ -16,7 +16,8 @@ defmodule Nbe do
   Struct.mk stop(expr: expression, message: String.t)
   Struct.mk the(type: type, value: value)
   Struct.mk def!(type: type, value: value)
-  Struct.mk neu(type: type, neu: neutral)
+  Struct.mk neu(type: value, neu: neutral)
+
   @type environment :: Keyword.t
   @type symbol :: atom
   @type value :: any
@@ -27,7 +28,7 @@ defmodule Nbe do
   @type perhaps(_a) :: go | stop
   @type type :: any
   @type norm :: any
-  @type definitions :: [Def.t]
+  @type definitions :: [def!]
 
   @spec assv(any, list(tuple)) :: tuple | false
   def assv(k, lst) do
@@ -61,17 +62,23 @@ defmodule Nbe do
   def memv(_, []), do: false
   def memv(x, [_ | rest]), do: memv(x, rest)
 
+  @spec (map fun, list) :: list
+  def (map f, xs), do: (Enum.map xs, f)
+
+  @spec symbol?(any) :: boolean
+  def symbol?(x), do: is_atom(x)
+
   @spec extend(environment, symbol, value) :: environment
   def extend(p, x, v), do:
     cons({x, v}, p)
 
   @spec val(environment, expression) :: value
   def val(p, e) do
-    case e do
+    view e do
       [f, [x], b] when f in [:lam, :λ] ->
         clos(p, x, b)
 
-      x when is_atom(x) ->
+      x when (symbol? x) ->
         xv = assv(x, p)
         if xv do
           cdr(xv)
@@ -156,14 +163,12 @@ defmodule Nbe do
     ]
   end
 
-  def zero?(n), do: n == 0
-
   def positive?(n), do: n > 0
 
   @spec to_church(non_neg_integer) :: expression
   def to_church(n) do
     cond do
-      zero?(n) ->
+      n == 0 ->
         :church_zero
 
       positive?(n) ->
@@ -487,9 +492,6 @@ defmodule Nbe do
     x in keywords()
   end
 
-  @spec symbol?(any) :: boolean
-  def symbol?(x), do: is_atom(x)
-
   @spec var?(any) :: boolean
   def var?(x) do
     symbol?(x) and not keyword?(x)
@@ -569,5 +571,290 @@ defmodule Nbe do
 
   # 7.2.1 The Values
 
+  Struct.mk pi(domain: value, range: closure)
+  Struct.mk lam(body: closure)
+  Struct.mk sigma(car_type: value, cdr_type: closure)
+  Struct.mk pair(car: value, cdr: value)
+  Struct.mk nat
+  Struct.mk eq(type: value, from: value, to: value)
+  Struct.mk same
+  Struct.mk trivial
+  Struct.mk sole
   Struct.mk absurd
+  Struct.mk atom!
+  Struct.mk quote!(symbol: symbol)
+  Struct.mk uni
+
+  Struct.mk h_o_clos(x: symbol, fun: (value -> value))
+
+  @type closure :: clos | h_o_clos
+  @spec closure?(any) :: boolean
+  def closure?(c), do: (clos? c) or (h_o_clos? c)
+
+  @spec closure_name(closure) :: symbol
+  def closure_name(c) do
+    case c do
+      (clos _, x, _) -> x
+      (h_o_clos x, _) -> x
+    end
+  end
+
+  # 7.2.2 Neutral Expressions
+
+  @type normal :: any
+  Struct.mk n_car(pair: neutral)
+  Struct.mk n_cdr(pair: neutral)
+  Struct.mk n_ind_Nat(target: neutral, motive: normal, base: normal, step: normal)
+  Struct.mk n_replace(target: neutral, motive: normal, base: normal)
+  Struct.mk n_ind_Absurd(target: neutral, motive: normal)
+
+  # 7.2.3 Normal Forms
+
+  # 7.3 Definitions and Dependent Types
+
+  Struct.mk bind(type: value)
+
+  @spec context?(any) :: boolean
+  def context?(big_gamma) do
+    case big_gamma do
+      [] -> true
+      [{x, b} | rest] ->
+        (symbol? x) and ((__MODULE__."def!?" b) or (bind? b)) and (context? rest)
+    end
+  end
+
+  @spec lookup_type(symbol, context) :: perhaps(value)
+  def lookup_type(x, big_gamma) do
+    case assv(x, big_gamma) do
+      false -> (stop x, "Unknown variable")
+      {_, (bind type)} -> (go type)
+      {_, (def! type, _)} -> (go type)
+    end
+  end
+
+  @spec ctx2env(context) :: environment
+  def ctx2env(big_gamma) do
+    Enum.map(big_gamma, fn
+      {name, (bind type)} ->
+        {name, (neu type, (n_var name))}
+      {name, (def! _, value)} ->
+        {name, value}
+    end)
+  end
+
+  @spec extend_ctx(context, symbol, value) :: context
+  def extend_ctx(big_gamma, x, t) do
+    [{x, (bind t)} | big_gamma]
+  end
+
+  # 7.3.1 The Evaluator
+
+  @spec val_of_closure(closure, value) :: value
+  def (val_of_closure c, v) do
+    case c do
+      (clos rho, x, e) -> (val (extend rho, x, v), e)
+      (h_o_clos _x, f) -> (f. v)
+    end
+  end
+
+  @spec val2(environment, expression) :: value
+  def (val2 rho, e) do
+    view e do
+      [:the, _type, expr] ->
+        (val rho, expr)
+      :U -> uni()
+      [:Π, [{x, ta}], tb] ->
+        (pi (val rho, ta), (clos rho, x, tb))
+      [:λ, [x], b] ->
+        (lam (clos rho, x, b))
+      [:Σ, [{x, ta}], td] ->
+        (sigma (val rho, ta), (clos rho, x, td))
+      [:cons, a, d] ->
+        (pair (val rho, a), (val rho, d))
+      [:car, pr] ->
+        (do_car (val rho, pr))
+      [:cdr, pr] ->
+        (do_cdr (val rho, pr))
+      :Nat -> nat()
+      :zero -> zero()
+      [:add1, n] -> (add1 (val rho, n))
+      [:ind_Nat, target, motive, base, step] ->
+        (do_ind_Nat (val rho, target), (val rho, motive), (val rho, base), (val rho, step))
+      [:=, ta, from, to] ->
+        (eq (val rho, ta), (val rho, from), (val rho, to))
+      :same ->
+        same()
+      [:replace, target, motive, base] ->
+        (do_replace (val rho, target), (val rho, motive), (val rho, base))
+      :Trivial -> trivial()
+      :sole -> sole()
+      :Absurd -> absurd()
+      [:ind_Absurd, target, motive] -> (do_ind_Absurd (val rho, target), (val rho, motive))
+      :Atom -> atom!()
+      a when is_atom(a) -> (quote! a)
+      [rator, rand] ->
+        (do_ap (val rho, rator), (val rho, rand))
+      x when (var? x) ->
+        (cdr (assv x, rho))
+    end
+  end
+
+  # 7.3.2 Eliminators
+
+  @spec do_car(value) :: value
+  @spec do_cdr(value) :: value
+
+  def (do_car v) do
+    case v do
+      (pair a, _d) -> a
+      (neu (sigma ta, _), ne) ->
+        (neu ta, (n_car ne))
+    end
+  end
+
+  def (do_cdr v) do
+    case v do
+      (pair _a, d) -> d
+      (neu (sigma _, td), ne) ->
+        (neu (val_of_closure td, (do_car v)),
+             (n_cdr ne))
+    end
+  end
+
+  @spec (do_ap2 value, value) :: value
+  def (do_ap2 fun, arg) do
+    case fun do
+      (lam c) ->
+        (val_of_closure c, arg)
+      (neu (pi ta, tb), ne) ->
+        (neu (val_of_closure tb, arg),
+             (n_ap ne, (the ta, arg)))
+    end
+  end
+
+  @spec (do_ind_Absurd value, value) :: value
+  def (do_ind_Absurd target, motive) do
+    case target do
+      (neu absurd(), ne) ->
+        (neu motive, (n_ind_Absurd ne, (the uni(), motive)))
+    end
+  end
+
+  @spec (do_replace value, value, value) :: value
+  def (do_replace target, motive, base) do
+    case target do
+      same() -> base
+      (neu (eq ta, from, to), ne) ->
+        (neu (do_ap2 motive, to),
+          (n_replace ne,
+            (the (pi ta, (h_o_clos :x, fn _ -> uni() end)),
+              motive),
+            (the (do_ap2 motive, from),
+              base)))
+    end
+  end
+
+  @spec (do_ind_Nat value, value, value, value) :: value
+  @spec (ind_Nat_step_type value) :: value
+
+  def (do_ind_Nat target, motive, base, step) do
+    case target do
+      zero() -> base
+      (add1 n) -> (do_ap2 (do_ap2 step, n), (do_ind_Nat n, motive, base, step))
+      (neu nat(), ne) ->
+        (neu (do_ap2 motive, target),
+          (n_ind_Nat ne,
+            (the (pi nat(),
+              (h_o_clos :k, fn _k -> uni() end)),
+              motive),
+            (the (do_ap2 motive, zero()), base),
+            (the (ind_Nat_step_type motive),
+              step)))
+    end
+  end
+
+  def (ind_Nat_step_type motive) do
+    (pi nat(),
+      (h_o_clos :n_1,
+        (fn n_1 -> 
+          (pi (do_ap2 motive, n_1),
+            (h_o_clos :ih, (fn _ih ->
+              (do_ap motive, (add1 n_1)) end))) end)))
+  end
+
+  # 7.3.3 Reading Back
+
+  @spec (read_back_norm context, norm) :: expression
+  def (read_back_norm big_gamma, norm) do
+    case norm do
+      (the nat(), zero()) -> :zero
+      (the nat(), (add1 n)) ->
+        [:add1, (read_back_norm big_gamma, (the nat(), n))]
+      (the (pi ta, tb), f) ->
+        x = (closure_name tb)
+        y = (freshen (Enum.map big_gamma, &car/1), x)
+        y_val = (neu ta, (n_var y))
+        [:λ, [y],
+          (read_back_norm (extend_ctx big_gamma, y, ta),
+            (the (val_of_closure tb, y_val),
+              (do_ap2 f, y_val)))]
+      (the (sigma ta, td), p) ->
+        the_car = (the ta, (do_car p))
+        the_cdr = (the (val_of_closure td, the_car), (do_cdr p))
+        [:cons, (read_back_norm big_gamma, the_car), (read_back_norm big_gamma, the_cdr)]
+      (the trivial(), _) -> :sole
+      (the absurd(), (neu absurd(), ne)) ->
+        [:the, :Absurd,
+          (read_back_neutral big_gamma, ne)]
+      (the (eq _ta, _from, _to), same()) -> :same
+      (the atom!(), (quote! x)) -> x
+      (the uni(), nat()) -> :Nat
+      (the uni(), atom!()) -> :Atom
+      (the uni(), trivial()) -> :Trivial
+      (the uni(), absurd()) -> :Absurd
+      (the uni(), (eq ta, from, to)) ->
+        [:=, (read_back_norm big_gamma, (the uni(), ta)),
+          (read_back_norm big_gamma, (the ta, from)),
+          (read_back_norm big_gamma, (the ta, to))]
+      (the uni(), (sigma ta, td)) ->
+        x = (closure_name td)
+        y = (freshen (map &car/1, big_gamma), x)
+        [:Σ, [{y, (read_back_norm big_gamma, (the uni(), ta))}],
+          (read_back_norm (extend_ctx big_gamma, y, ta),
+            (the uni(), (val_of_closure td, (neu ta, (n_var y)))))]
+      (the uni(), (pi ta, tb)) ->
+        x = (closure_name tb)
+        y = (freshen (map &car/1, big_gamma), x)
+        [:Π, [{y, (read_back_norm big_gamma, (the uni(), ta))}],
+          (read_back_norm (extend_ctx big_gamma, y, ta),
+            (the uni(), (val_of_closure tb, (neu ta, (n_var y)))))]
+      (the uni(), uni()) -> :U
+      (the _t1, (neu _t2, ne)) ->
+        (read_back_neutral big_gamma, ne)
+    end
+  end
+
+  @spec (read_back_neutral context, neutral) :: expression
+  def (read_back_neutral big_gamma, neu) do
+    case neu do
+      (n_var x) -> x
+      (n_ap ne, rand) ->
+        [(read_back_neutral big_gamma, ne),
+          (read_back_norm big_gamma, rand)]
+      (n_car ne) -> [:car, (read_back_neutral big_gamma, ne)]
+      (n_cdr ne) -> [:cdr, (read_back_neutral big_gamma, ne)]
+      (n_ind_Nat ne, motive, base, step) ->
+        [:ind_Nat, (read_back_neutral big_gamma, ne),
+          (read_back_norm big_gamma, motive),
+          (read_back_norm big_gamma, base),
+          (read_back_norm big_gamma, step)]
+      (n_replace ne, motive, base) ->
+        [:replace, (read_back_neutral big_gamma, ne),
+          (read_back_norm big_gamma, motive),
+          (read_back_norm big_gamma, base)]
+      (n_ind_Absurd ne, motive) ->
+        [:ind_Absurd, [:the, :Absurd, (read_back_neutral big_gamma, ne)],
+          (read_back_norm big_gamma, motive)]
+    end
+  end
 end

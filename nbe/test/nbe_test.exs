@@ -238,4 +238,16 @@ defmodule NbeTest do
   # 7.2 Values and Normalization
 
   # 7.2.1 The Values
+
+  # 7.2.2 Neutral Expressions
+
+  # 7.2.3 Normal Forms
+
+  # 7.3 Definitions and Dependent Types
+
+  # 7.3.1 The Evaluator
+
+  # 7.3.2 Eliminators
+
+  # 7.3.3 Reading Back
 end
