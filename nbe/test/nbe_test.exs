@@ -250,4 +250,10 @@ defmodule NbeTest do
   # 7.3.2 Eliminators
 
   # 7.3.3 Reading Back
+
+  # 7.4 Type Checking
+
+  # 7.4.1 The Type Checker
+
+  # 7.4.2 Type Checking with Definition
 end

@@ -292,8 +292,8 @@ defmodule Nbe do
 
       [:λ, [x], b] ->
         case t do
-          [:->, ta, tb] ->
-            (go_on [[_, (check (extend gamma, x, ta), b, tb)]],
+          [:->, tA, tB] ->
+            (go_on [[_, (check (extend gamma, x, tA), b, tB)]],
               (go :ok))
 
           non_arrow ->
@@ -373,8 +373,8 @@ defmodule Nbe do
       (clos rho, x, e) ->
         (tval (extend rho, x, arg), e)
 
-      (neu [:->, ta, tb], ne) ->
-        (neu tb, (n_ap ne, (the ta, arg)))
+      (neu [:->, tA, tB], ne) ->
+        (neu tB, (n_ap ne, (the tA, arg)))
     end
   end
 
@@ -408,11 +408,11 @@ defmodule Nbe do
             (tread_back_neutral used_names, ne)
         end
 
-      [:->, ta, tb] ->
+      [:->, tA, tB] ->
         x = (freshen used_names, :x)
         [:λ, [x], (tread_back (cons x, used_names),
-          tb,
-          (tdo_ap value, (neu ta, (n_var x))))]
+          tB,
+          (tdo_ap value, (neu tA, (n_var x))))]
     end
   end
 
@@ -663,12 +663,12 @@ defmodule Nbe do
       [:the, _type, expr] ->
         (val rho, expr)
       :U -> uni()
-      [:Π, [{x, ta}], tb] ->
-        (pi (val rho, ta), (clos rho, x, tb))
+      [:Π, [{x, tA}], tB] ->
+        (pi (val rho, tA), (clos rho, x, tB))
       [:λ, [x], b] ->
         (lam (clos rho, x, b))
-      [:Σ, [{x, ta}], td] ->
-        (sigma (val rho, ta), (clos rho, x, td))
+      [:Σ, [{x, tA}], tD] ->
+        (sigma (val rho, tA), (clos rho, x, tD))
       [:cons, a, d] ->
         (pair (val rho, a), (val rho, d))
       [:car, pr] ->
@@ -680,8 +680,8 @@ defmodule Nbe do
       [:add1, n] -> (add1 (val rho, n))
       [:ind_Nat, target, motive, base, step] ->
         (do_ind_Nat (val rho, target), (val rho, motive), (val rho, base), (val rho, step))
-      [:=, ta, from, to] ->
-        (eq (val rho, ta), (val rho, from), (val rho, to))
+      [:=, tA, from, to] ->
+        (eq (val rho, tA), (val rho, from), (val rho, to))
       :same ->
         same()
       [:replace, target, motive, base] ->
@@ -707,16 +707,16 @@ defmodule Nbe do
   def (do_car v) do
     case v do
       (pair a, _d) -> a
-      (neu (sigma ta, _), ne) ->
-        (neu ta, (n_car ne))
+      (neu (sigma tA, _), ne) ->
+        (neu tA, (n_car ne))
     end
   end
 
   def (do_cdr v) do
     case v do
       (pair _a, d) -> d
-      (neu (sigma _, td), ne) ->
-        (neu (val_of_closure td, (do_car v)),
+      (neu (sigma _, tD), ne) ->
+        (neu (val_of_closure tD, (do_car v)),
              (n_cdr ne))
     end
   end
@@ -726,9 +726,9 @@ defmodule Nbe do
     case fun do
       (lam c) ->
         (val_of_closure c, arg)
-      (neu (pi ta, tb), ne) ->
-        (neu (val_of_closure tb, arg),
-             (n_ap ne, (the ta, arg)))
+      (neu (pi tA, tB), ne) ->
+        (neu (val_of_closure tB, arg),
+             (n_ap ne, (the tA, arg)))
     end
   end
 
@@ -744,10 +744,10 @@ defmodule Nbe do
   def (do_replace target, motive, base) do
     case target do
       same() -> base
-      (neu (eq ta, from, to), ne) ->
+      (neu (eq tA, from, to), ne) ->
         (neu (do_ap2 motive, to),
           (n_replace ne,
-            (the (pi ta, (h_o_clos :x, fn _ -> uni() end)),
+            (the (pi tA, (h_o_clos :x, fn _ -> uni() end)),
               motive),
             (the (do_ap2 motive, from),
               base)))
@@ -785,76 +785,255 @@ defmodule Nbe do
   # 7.3.3 Reading Back
 
   @spec (read_back_norm context, norm) :: expression
-  def (read_back_norm big_gamma, norm) do
+  def (read_back_norm g, norm) do
     case norm do
       (the nat(), zero()) -> :zero
       (the nat(), (add1 n)) ->
-        [:add1, (read_back_norm big_gamma, (the nat(), n))]
-      (the (pi ta, tb), f) ->
-        x = (closure_name tb)
-        y = (freshen (Enum.map big_gamma, &car/1), x)
-        y_val = (neu ta, (n_var y))
+        [:add1, (read_back_norm g, (the nat(), n))]
+      (the (pi tA, tB), f) ->
+        x = (closure_name tB)
+        y = (freshen (Enum.map g, &car/1), x)
+        y_val = (neu tA, (n_var y))
         [:λ, [y],
-          (read_back_norm (extend_ctx big_gamma, y, ta),
-            (the (val_of_closure tb, y_val),
+          (read_back_norm (extend_ctx g, y, tA),
+            (the (val_of_closure tB, y_val),
               (do_ap2 f, y_val)))]
-      (the (sigma ta, td), p) ->
-        the_car = (the ta, (do_car p))
-        the_cdr = (the (val_of_closure td, the_car), (do_cdr p))
-        [:cons, (read_back_norm big_gamma, the_car), (read_back_norm big_gamma, the_cdr)]
+      (the (sigma tA, tD), p) ->
+        the_car = (the tA, (do_car p))
+        the_cdr = (the (val_of_closure tD, the_car), (do_cdr p))
+        [:cons, (read_back_norm g, the_car), (read_back_norm g, the_cdr)]
       (the trivial(), _) -> :sole
       (the absurd(), (neu absurd(), ne)) ->
         [:the, :Absurd,
-          (read_back_neutral big_gamma, ne)]
+          (read_back_neutral g, ne)]
       (the (eq _ta, _from, _to), same()) -> :same
       (the atom!(), (quote! x)) -> x
       (the uni(), nat()) -> :Nat
       (the uni(), atom!()) -> :Atom
       (the uni(), trivial()) -> :Trivial
       (the uni(), absurd()) -> :Absurd
-      (the uni(), (eq ta, from, to)) ->
-        [:=, (read_back_norm big_gamma, (the uni(), ta)),
-          (read_back_norm big_gamma, (the ta, from)),
-          (read_back_norm big_gamma, (the ta, to))]
-      (the uni(), (sigma ta, td)) ->
-        x = (closure_name td)
-        y = (freshen (map &car/1, big_gamma), x)
-        [:Σ, [{y, (read_back_norm big_gamma, (the uni(), ta))}],
-          (read_back_norm (extend_ctx big_gamma, y, ta),
-            (the uni(), (val_of_closure td, (neu ta, (n_var y)))))]
-      (the uni(), (pi ta, tb)) ->
-        x = (closure_name tb)
-        y = (freshen (map &car/1, big_gamma), x)
-        [:Π, [{y, (read_back_norm big_gamma, (the uni(), ta))}],
-          (read_back_norm (extend_ctx big_gamma, y, ta),
-            (the uni(), (val_of_closure tb, (neu ta, (n_var y)))))]
+      (the uni(), (eq tA, from, to)) ->
+        [:=, (read_back_norm g, (the uni(), tA)),
+          (read_back_norm g, (the tA, from)),
+          (read_back_norm g, (the tA, to))]
+      (the uni(), (sigma tA, tD)) ->
+        x = (closure_name tD)
+        y = (freshen (map &car/1, g), x)
+        [:Σ, [{y, (read_back_norm g, (the uni(), tA))}],
+          (read_back_norm (extend_ctx g, y, tA),
+            (the uni(), (val_of_closure tD, (neu tA, (n_var y)))))]
+      (the uni(), (pi tA, tB)) ->
+        x = (closure_name tB)
+        y = (freshen (map &car/1, g), x)
+        [:Π, [{y, (read_back_norm g, (the uni(), tA))}],
+          (read_back_norm (extend_ctx g, y, tA),
+            (the uni(), (val_of_closure tB, (neu tA, (n_var y)))))]
       (the uni(), uni()) -> :U
       (the _t1, (neu _t2, ne)) ->
-        (read_back_neutral big_gamma, ne)
+        (read_back_neutral g, ne)
     end
   end
 
   @spec (read_back_neutral context, neutral) :: expression
-  def (read_back_neutral big_gamma, neu) do
+  def (read_back_neutral g, neu) do
     case neu do
       (n_var x) -> x
       (n_ap ne, rand) ->
-        [(read_back_neutral big_gamma, ne),
-          (read_back_norm big_gamma, rand)]
-      (n_car ne) -> [:car, (read_back_neutral big_gamma, ne)]
-      (n_cdr ne) -> [:cdr, (read_back_neutral big_gamma, ne)]
+        [(read_back_neutral g, ne),
+          (read_back_norm g, rand)]
+      (n_car ne) -> [:car, (read_back_neutral g, ne)]
+      (n_cdr ne) -> [:cdr, (read_back_neutral g, ne)]
       (n_ind_Nat ne, motive, base, step) ->
-        [:ind_Nat, (read_back_neutral big_gamma, ne),
-          (read_back_norm big_gamma, motive),
-          (read_back_norm big_gamma, base),
-          (read_back_norm big_gamma, step)]
+        [:ind_Nat, (read_back_neutral g, ne),
+          (read_back_norm g, motive),
+          (read_back_norm g, base),
+          (read_back_norm g, step)]
       (n_replace ne, motive, base) ->
-        [:replace, (read_back_neutral big_gamma, ne),
-          (read_back_norm big_gamma, motive),
-          (read_back_norm big_gamma, base)]
+        [:replace, (read_back_neutral g, ne),
+          (read_back_norm g, motive),
+          (read_back_norm g, base)]
       (n_ind_Absurd ne, motive) ->
-        [:ind_Absurd, [:the, :Absurd, (read_back_neutral big_gamma, ne)],
-          (read_back_norm big_gamma, motive)]
+        [:ind_Absurd, [:the, :Absurd, (read_back_neutral g, ne)],
+          (read_back_norm g, motive)]
     end
   end
+
+  # 7.4 Type Checking
+
+  # 7.4.1 The Type Checker
+
+  @type elab :: any # [:the, expression, expression]
+  @spec (synth2 context, expression) :: elab
+  def (synth2 g, e) do
+    view e do
+      [:the, type, expr] ->
+        (go_on [[t_out, (check2 g, type, uni())],
+          [e_out, (check2 g, expr, (val (ctx2env g), t_out))]],
+          (go [:the, t_out, e_out]))
+      :U ->
+        (go [:the, :U, :U])
+      [op, [{x, tA}], tD] when op in [:Σ, :Sigma] ->
+        (go_on [[ta_out, (check2 g, tA, uni())],
+          [td_out, (check2 (extend_ctx g, x, (val (ctx2env g), ta_out)), tD, uni())]],
+          (go [:the, :U, [:Σ, [{x, ta_out}], td_out]]))
+      [:car, pr] ->
+        (go_on [[[:the, pr_ty, pr_out], (synth2 g, pr)]],
+          (case (val (ctx2env g), pr_ty) do
+            (sigma tA, tD) ->
+              (go [:the, (read_back_norm g, (the uni(), tA)), [:car, pr_out]])
+            non_sigma ->
+              (stop e, "Expected Σ, got #{
+                (read_back_norm g, (the uni(), non_sigma))}")
+          end))
+      [:cdr, pr] ->
+        (go_on [[[:the, pr_ty, pr_out], (synth2 g, pr)]],
+          (case (val (ctx2env g), pr_ty) do
+            (sigma tA, tD) ->
+              the_car = (do_car (val (ctx2env g), pr_out))
+              (go [:the, (read_back_norm g, (the uni(), (val_of_closure tD, the_car))), [:cdr, pr_out]])
+            non_sigma ->
+              (stop e, "Expected Σ, got #{inspect(
+                (read_back_norm g, (the uni(), non_sigma)))}")
+          end))
+      :Nat -> (go [:the, :U, :Nat])
+      [:ind_Nat, target, motive, base, step] ->
+        (go_on [[target_out, (check2 g, target, nat())],
+          [motive_out, (check2 g, motive, (pi nat(), (h_o_clos :n, fn _ -> uni() end)))],
+          [motive_val, (go (val (ctx2env g), motive_out))],
+          [base_out, (check2 g, base, (do_ap motive_val, zero()))],
+          [step_out, (check2 g,
+            step,
+            (ind_Nat_step_type motive_val))]
+        ],
+          (go [:the, (read_back_norm g,
+          (the uni(),
+            (do_ap motive_val, (val (ctx2env g), target_out)))),
+            [:ind_Nat, target_out, motive_out, base_out, step_out]]))
+      [:=, tA, from, to] ->
+        (go_on [[tA_out, (check2 g, tA, uni())],
+          [tA_val, (go (val (ctx2env g), tA_out))],
+          [from_out, (check2 g, from, tA_val)],
+          [to_out, (check2 g, to, tA_val)]],
+          (go [:the, :U, [:=, tA_out, from_out, to_out]]))
+      [:replace, target, motive, base] ->
+        (go_on [[[:the, target_t, target_out], (synth2 g, target)]],
+          (case (val (ctx2env g), target_t) do
+            (eq tA, from ,to) ->
+              (go_on [[motive_out,
+                (check2 g,
+                  motive,
+                  (pi tA, (h_o_clos :x, (fn _x -> uni() end))))],
+                [motive_v, (go (val (ctx2env g), motive_out))],
+                [base_out, (check2 g, base, (do_ap motive_v, from))]
+              ],
+                (go [:the, (read_back_norm g, (the uni(), (do_ap motive_v, to))),
+                  [:replace, target_out, motive_out, base_out]]))
+            non_eq ->
+              (stop target, "Expected =, but type is #{inspect(non_eq)}")
+          end))
+      [op, [{x, tA}], tB] when op in [:Π, :Pi] ->
+        (go_on [[tA_out, (check2 g, tA, uni())],
+          [tB_out, (check2 (extend_ctx g, x, (val (ctx2env g), tA_out)), tB, uni())]],
+          (go [:the, :U, [:Π, [{x, tA_out}], tB_out]]))
+      :Trivial -> (go [:the, :U, :Trivial])
+      :Absurd -> (go [:the, :U, :Absurd])
+      [:ind_Absurd, target, motive] ->
+        (go_on [[target_out, (check2 g, target, absurd())],
+          [motive_out, (check2 g, motive, uni())]],
+          (go [:the, motive_out, [:ind_Absurd, target_out, motive_out]]))
+      :Atom -> (go [:the, :U, :Atom])
+      [rator, rand] ->
+        (go_on [[[:the, rator_t, rator_out], (synth2 g, rator)]],
+          (case (val (ctx2env g), rator_t) do
+            (pi tA, tB) ->
+              (go_on [[rand_out, (check2 g, rand, tA)]],
+                (go [:the, (read_back_norm g,
+                (the uni(), (val_of_closure tB,
+                  (val (ctx2env g), rand_out)))),
+                [rator_out, rand_out]]))
+            non_pi -> (stop rator,
+              "Expected a Π type, but this is a #{
+              inspect((read_back_norm g, (the uni(), non_pi)))}")
+          end))
+      x when (var? x) ->
+        (go_on [[t, (lookup_type x, g)]],
+          (go [:the, (read_back_norm g, (the uni(), t)), x]))
+      _none_of_the_above -> (stop e, "Can't synthesize a type")
+    end
+  end
+
+  @spec (check2 context, expression, value) :: perhaps(expression)
+  def check2(g, e, t) do
+    case e do
+      [:cons, a, d] ->
+        case t do
+          (sigma tA, tD) ->
+            (go_on [[a_out, (check2 g, a, tA)],
+            [d_out, (check2 g, d, (val_of_closure tD, (val (ctx2env g), a_out)))]],
+              (go [:cons, a_out, d_out]))
+          non_sigma -> (stop e, "Expected Σ, got #{inspect(
+            (read_back_norm g, (the uni(), non_sigma)))}")
+        end
+      :zero ->
+        case t do
+          nat() -> (go :zero)
+          non_nat -> (stop e, "Expected Nat, got #{inspect(
+            (read_back_norm g, (the uni(), non_nat)))}")
+        end
+      [:add1, n] ->
+        case t do
+          nat() ->
+            (go_on [[n_out, (check2 g, n, nat())]],
+              (go [:add1, n_out]))
+          non_nat -> (stop e, "Expected Nat, got #{inspect(
+            (read_back_norm g, (the uni(), non_nat)))}")
+        end
+      :same ->
+        case t do
+          (eq tA, from, to) ->
+            (go_on [[_, (convert g, tA, from, to)]],
+              (go :same))
+          non_eq -> (stop e, "Expected =, got #{inspect(
+            (read_back_norm g, (the uni(), non_eq)))}")
+        end
+      :sole ->
+        case t do
+          trivial() -> (go :sole)
+          non_trivial -> (stop e, "Expected Trivial, got #{inspect(
+            (read_back_norm g, (the uni(), non_trivial)))}")
+        end
+      [op, [x], b] when op in [:λ, :lambda] ->
+        case t do
+          (pi tA, tB) ->
+            x_val = (neu tA, (n_var x))
+            (go_on [[b_out, (check2 (extend_ctx g, x, tA), b, (val_of_closure tB, x_val))]],
+            (go [:λ, [x], b_out]))
+        end
+      a when is_atom(a) ->
+        case t do
+          atom!() ->
+            (go a)
+          non_atom -> (stop e, "Expected Atom, got #{inspect(
+            (read_back_norm g, (the uni(), non_atom)))}")
+        end
+      _none_of_the_above ->
+        (go_on [[[:the, t_out, e_out], (synth2 g, e)],
+          [_, (convert g, uni(), t, (val (ctx2env g), t_out))]],
+          (go e_out))
+    end
+  end
+
+  @spec (convert context, value, value, value) :: perhaps(:ok)
+  def (convert g, t, v1, v2) do
+    e1 = (read_back_norm g, (the t, v1))
+    e2 = (read_back_norm g, (the t, v2))
+    if (α_equiv? e1, e2) do
+      (go :ok)
+    else
+      tn = (read_back_norm g, (the uni(), t))
+      (stop e1, "Expected to be the same #{inspect(tn)} as #{inspect(e2)}")
+    end
+  end
+
+  # 7.4.2 Type Checking with Definition
 end
