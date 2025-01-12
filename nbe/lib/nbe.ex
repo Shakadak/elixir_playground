@@ -1036,4 +1036,36 @@ defmodule Nbe do
   end
 
   # 7.4.2 Type Checking with Definition
+
+  @spec (interact context, define | expression) :: perhaps(context)
+  def (interact g, input) do
+    case input do
+      [:define, x, e] ->
+        if (assv x, g) do
+          (stop x, "Already defined")
+        else
+          (go_on [[[:the, ty, expr], (synth2 g, e)]],
+            (rho = (ctx2env g)
+            go [{x, (def! (val rho, ty), (val rho, expr))}
+                | g]))
+        end
+      e ->
+        (go_on [[[:the, ty, expr], (synth2 g, e)]],
+          (rho = (ctx2env g)
+            IO.puts("Type: #{inspect(ty)}\nNormalForm: #{inspect(
+            (read_back_norm g,
+              (the (val rho, ty), (val rho, expr))))}")
+          (go g)))
+    end
+  end
+
+  @spec (run_program2 context, [define | expression]) :: perhaps(context)
+  def (run_program2 g, inputs) do
+    case inputs do
+      [] -> (go g)
+      [d | rest] ->
+        (go_on [[new_g, (interact g, d)]],
+          (run_program2 new_g, rest))
+    end
+  end
 end
