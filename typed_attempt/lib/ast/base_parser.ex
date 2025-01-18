@@ -39,10 +39,17 @@ defmodule Ast.BaseParser do
         end
 
       ~m/fn #{...pat_list} -> #{expr} end/ ->
+        # IO.inspect(pat_list, label: "fn with one clause")
         CE.compute Workflow.Result do
           let! pat_list_ast = Result.mapM(pat_list, &Ast.FromElixir.parse(&1, context, parsers))
           let! expr_ast = Ast.FromElixir.parse(expr, context, parsers)
           pure Ast.Core.lam(pat_list_ast, expr_ast)
+        end
+
+      {:fn, _, [~m/( -> #{expr})/w]} ->
+        CE.compute Workflow.Result do
+          let! expr_ast = Ast.FromElixir.parse(expr, context, parsers)
+          pure Ast.Core.lam([], expr_ast)
         end
 
       {:fn, _, [~m/(#{...pat_list} -> #{_expr})/w | _] = clauses} ->
@@ -59,8 +66,8 @@ defmodule Ast.BaseParser do
           let! on_true = Ast.FromElixir.parse(on_true, context, parsers)
           let! on_false = Ast.FromElixir.parse(on_false, context, parsers)
           pure Ast.Core.case([], [
-            Ast.Core.clause([], [cdn_ast], on_true),
-            Ast.Core.clause([], [Ast.Core.lit(true)], on_false),
+            Ast.Core.gclause([], [cdn_ast], on_true),
+            Ast.Core.gclause([], [Ast.Core.lit(true)], on_false),
           ])
         end
 
@@ -101,12 +108,23 @@ defmodule Ast.BaseParser do
   end
 
   def parse_clauses(clauses, context, parsers) do
-    Result.mapM(clauses, fn ~m/(#{...pat_list} -> #{expr})/w ->
-      CE.compute Workflow.Result do
-        let! pat_list_ast = Result.mapM(pat_list, &Ast.FromElixir.parse(&1, context, parsers))
-        let! expr_ast = Ast.FromElixir.parse(expr, context, parsers)
-        pure Ast.Core.clause(pat_list_ast, [], expr_ast)
-      end
+    Result.mapM(clauses, fn
+      ~m/(#{pat_list} when #{guards} -> #{expr})/w ->
+        # _ = IO.inspect(guards, label: "parse_clauses, guards found")
+        # _ = IO.inspect(pat_list, label: "parse_clauses, guards found (pat_list)")
+        CE.compute Workflow.Result do
+          let! pat_list_ast = Result.mapM([pat_list], &Ast.FromElixir.parse(&1, context, parsers))
+          let! guards_ast = Result.mapM([guards], &Ast.FromElixir.parse(&1, context, parsers))
+          let! expr_ast = Ast.FromElixir.parse(expr, context, parsers)
+          pure Ast.Core.gclause(pat_list_ast, guards_ast, expr_ast)
+        end
+
+      ~m/(#{...pat_list} -> #{expr})/w ->
+        CE.compute Workflow.Result do
+          let! pat_list_ast = Result.mapM(pat_list, &Ast.FromElixir.parse(&1, context, parsers))
+          let! expr_ast = Ast.FromElixir.parse(expr, context, parsers)
+          pure Ast.Core.clause(pat_list_ast, expr_ast)
+        end
     end)
   end
 
@@ -125,7 +143,7 @@ defmodule Ast.BaseParser do
       pure(case expr_ast do
         Ast.Core.non_rec(Ast.Core.var(_), _) -> Ast.Core.let(expr_ast, tail_ast)
         Ast.Core.non_rec(pat, val) -> Ast.Core.case([val], [
-            Ast.Core.clause([pat], [], tail_ast),
+            Ast.Core.clause([pat], tail_ast),
         ])
         _ -> Ast.Core.let(Ast.Core.non_rec(Ast.Core.var(:_), expr_ast), tail_ast)
       end)
