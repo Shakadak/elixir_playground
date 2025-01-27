@@ -1,6 +1,52 @@
 defmodule LambdaLifting do
   @moduledoc """
-  Documentation for `LambdaLifting`.
+  Anonymous functions and closures are not compiled as inline code in Erlang.
+
+  If we take for example the function:
+  ```elixir
+  def my_fun(list) do
+    Enum.map(list, fn element -> element + 1 end)
+  end
+  ```
+  The anonymous function is in fact compiled as a separate function, named
+  with something of the form `-my_fun-0`, which doesn't really matter as it
+  can not be used directly. You can check informations about anonymous functions
+  with Erlang's `:erlang.fun_info/1`.  
+  This is how Erlang is capable of passing functions across nodes, it doesn't send
+  code, it sends informations on how to execute the function stored in the module.
+
+  What this module does, with its macro `lfn/2`, is repeat this exact same process,
+  but explicitely.  
+  Why is that ?  
+  Metadata is associated to the anonymous function informations in order to ensure that
+  code isn't executed with a different version. This means that if the module is
+  recompiled, even if this specific anonymous function didn't change, it will still be
+  considered as different code, and fail at runtime.  
+  If instead we do the process of compiling the anonymous function ourselve, and store
+  the expected closed over env. We can then safely pass the fonction reference, (when you
+  do `&module.function/arity`) along with the closed over env to different nodes with
+  different version and it will still work. That is, as long as the code on the other
+  node can properly use the given data.
+
+  It still means having to be careful when updating code, but you still get the
+  convenience of colocated code.
+
+  Using the `:name` option allows for more stability over time, as the name will not
+  depend on the order of execution of the macro. And it also mean you can refactor the
+  anonymous function to elsewhere, or save it for backward compatibility between versions.
+
+  Multiclause anonymous functions are supported.
+
+  ## Examples
+
+  The above example can thus be redefined as such:
+  ```elixir
+  use LambdaLifting
+
+  def my_fun(list) do
+    Enum.map(list, lfn do element -> element + 1 end)
+  end
+  ```
   """
 
   defmacro __using__([]) do
