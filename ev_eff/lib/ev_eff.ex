@@ -9,19 +9,7 @@ defmodule EvEff do
   import Reader
   import Exn
   import State
-
-  @doc """
-  Hello world.
-
-  ## Examples
-
-      iex> EvEff.hello()
-      :world
-
-  """
-  def hello do
-    :world
-  end
+  import Amb
 
   def greet do
     m Eff do
@@ -42,6 +30,14 @@ defmodule EvEff do
       b <- perform get(), {}
       perform put(), (not b)
       perform get(), {}
+    end
+  end
+
+  def xor do
+    m Eff do
+      x <- perform flip(), {}
+      y <- perform flip(), {}
+      Eff.pure((x and not y) or (not x and y))
     end
   end
 end

@@ -5,10 +5,6 @@ defmodule EvEffTest do
   import EvEff
   import Eff
 
-  test "greets the world" do
-    assert EvEff.hello() == :world
-  end
-
   test "Reader world" do
     assert runEff(helloWorld()) == "hello world"
   end
@@ -33,5 +29,18 @@ defmodule EvEffTest do
   test "State as a Function" do
     import State
     assert runEff(state2(true, invert())) == false
+  end
+
+  test "Ambiguity" do
+    import Amb
+    assert runEff(allResults(xor())) == [false, true, true, false]
+  end
+
+  test "Parser" do
+    import Parser
+    assert runEff(solutions(parse(~c'1+2*3', expr()))) ==
+      [{7, ~c''}, {3, ~c"*3"}, {1, ~c"+2*3"}]
+
+    assert runEff(eager(parse(~c'1+2*3', expr()))) == {Just, {7, ~c''}}
   end
 end

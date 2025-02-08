@@ -11,13 +11,17 @@ defmodule Bind do
     body = case block do
       {:__block__, _context, body} when is_list(body) -> body
       body when is_list(body) -> body
+      {:<-, _, _} = bad_body -> [bad_body]
     end
     rec_mdo(module, body)
     |> case do x -> IO.puts(Macro.to_string(x)) ; x end
   end
 
   def rec_mdo(_module, [{:<-, context, _}]) do
-    raise "Error line #{Keyword.get(context, :line, :unknown)}: end of monadic do should be a monadic value"
+    description =
+      "End of do notation should be a monadic expression, not a binding statement."
+    line = Keyword.fetch!(context, :line)
+    raise CompileError, line: line, description: description
   end
 
   def rec_mdo(_module, []) do

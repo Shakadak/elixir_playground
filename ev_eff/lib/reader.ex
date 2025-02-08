@@ -1,3 +1,7 @@
+defmodule Reader.Ask do
+  defstruct []
+end
+
 defmodule Reader do
   @enforce_keys [
     :ask,
@@ -6,7 +10,7 @@ defmodule Reader do
 
   import Eff
 
-  def ask, do: fn {} -> {:banana} end
+  def ask, do: %Reader.Ask{}
 
   def reader(action) do
     handler(%Reader{ask: value("world")}, action)
@@ -19,4 +23,11 @@ defmodule Reader do
   def r3 do
     %Reader{ask: operation(fn {}, k -> k.("world") end)}
   end
+end
+
+defimpl Context, for: Reader.Ask do
+  def appropriate?(_, %Reader{}), do: true
+  def appropriate?(_, _), do: false
+
+  def selectOp(_, %Reader{ask: op}), do: op
 end
