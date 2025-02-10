@@ -28,11 +28,11 @@ defmodule Error do
   @doc false
   def pure_run_error(xs) do
     f = fn
-      0, _acc -> :none
-      _x, :none -> :none
-      x, {:some, acc} -> {:some, acc * x}
+      0, _acc -> 0
+      _x, 0 -> 0
+      x, acc -> acc * x
     end
-    Enum.reduce(xs, {:some, 1}, f)
+    Enum.reduce(xs, 1, f)
   end
 
   @doc false

@@ -1,6 +1,22 @@
 defmodule Local.Op do
   @enforce_keys [:op]
   defstruct @enforce_keys
+
+  import Op
+  import Ctl
+
+  def appropriate?(_, %impl{}), do: impl == Local
+
+  def lget(_m, _ctx, _x, ref), do: unsafeIO(readIORef(ref))
+
+  def selectOp(%__MODULE__{op: :lget}, %impl{local: ref}) when impl == Local do
+    #op fn _m, _ctx, _x -> unsafeIO(readIORef(ref)) end
+    op(&__MODULE__.lget(&1, &2, &3, ref))
+  end
+
+  def selectOp(%__MODULE__{op: :lput}, %impl{local: ref}) when impl == Local do
+    op fn _m, _ctx, x -> unsafeIO(writeIORef(ref, x)) end
+  end
 end
 
 defmodule Local do
@@ -52,8 +68,11 @@ defimpl Context, for: Local.Op do
   def appropriate?(_, %Local{}), do: true
   def appropriate?(_, %_{}), do: false
 
+  def lget(_m, _ctx, _x, ref), do: unsafeIO(readIORef(ref))
+
   def selectOp(%@for{op: :lget}, %Local{local: ref}) do
-    op fn _m, _ctx, _x -> unsafeIO(readIORef(ref)) end
+    #op fn _m, _ctx, _x -> unsafeIO(readIORef(ref)) end
+    op(&__MODULE__.lget(&1, &2, &3, ref))
   end
 
   def selectOp(%@for{op: :lput}, %Local{local: ref}) do

@@ -5,7 +5,7 @@ inputs = %{
 }
 
 contenders = %{
-  "pure" => fn input -> Error.pure(input) end,
+  # "pure" => fn input -> Error.pure(input) end,
   # "ev_maybe" => fn input -> Error.ev_maybe(input) end,
   "ev_either" => fn input -> Error.ev_either(input) end,
   # "ev_default" => fn input -> Error.ev_default(input) end,

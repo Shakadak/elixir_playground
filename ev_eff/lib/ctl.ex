@@ -46,7 +46,12 @@ defmodule Ctl do
     _yield(m, op, &_pure/1)
   end
 
-  def kcompose(g, f, x), do: bind(f.(x), g)
+  def kcompose(g, f, x) do
+    case f.(x) do
+      _pure(y) -> g.(y)
+      _yield(m, op, cont) -> _yield(m, op, &kcompose(f, cont, &1))
+    end
+  end
 
   def pure(x), do: _pure(x)
 
@@ -106,7 +111,7 @@ defmodule Ctl do
   end
 
   def unsafeIO(ref) do
-    Ctl.pure(ref)
+    _pure(ref)
   end
 
   def mpromptIORef(r, action) do

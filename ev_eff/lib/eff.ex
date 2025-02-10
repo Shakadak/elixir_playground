@@ -17,6 +17,11 @@ defmodule Eff do
     f
   end
 
+  @doc """
+  under :: Context e -> Eff e a -> Ctl a
+  """
+  defmacro under(ctx, eff(eff)), do: quote(do: unquote(eff).(unquote(ctx)))
+
   def pure(x), do: eff(fn _ctx -> Ctl.pure(x) end)
 
   def bind(eff(eff), f) do
@@ -35,28 +40,23 @@ defmodule Eff do
     end
   end
 
-  @doc """
-  under :: Context e -> Eff e a -> Ctl a
-  """
-  def under(ctx, eff(eff)), do: eff.(ctx)
-
   def runEff(eff(eff)) do
     Ctl.runCtl(eff.(cnil()))
   end
 
-  def perform(selectOp, x) do
+  def perform(%impl{} = selectOp, x) do
     eff(fn ctx ->
       case selectContext(ctx, selectOp) do
         {SubContext, ccons(m, h, t, ctx_)} ->
-          case Context.selectOp(selectOp, h) do
+          case impl.runOp(selectOp, h) do
             op(f) -> f.(m, t.(ctx_), x)
           end
       end
     end)
   end
 
-  def selectContext(ccons(_m, h, _t, sub_ctx) = ctx, selector) do
-    case Context.appropriate?(selector, h) do
+  def selectContext(ccons(_m, h, _t, sub_ctx) = ctx, %impl{} = selector) do
+    case impl.appropriate?(selector, h) do
       true -> {SubContext, ctx}
       false -> selectContext(sub_ctx, selector)
     end
@@ -67,7 +67,7 @@ defmodule Eff do
   end
 
   defmacro function(f) do
-    quote do
+    quote location: :keep do
       Op.op(fn _m, ctx, x -> under(ctx, unquote(f).(x)) end)
     end
   end

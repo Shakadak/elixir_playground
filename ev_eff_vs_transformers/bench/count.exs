@@ -5,7 +5,7 @@ inputs = %{
 }
 
 contenders = %{
-  "pure" => fn input -> Count.pure(input) end,
+  # "pure" => fn input -> Count.pure(input) end,
   "ev_eff_ets" => fn input -> Count.ev_ets(input) end,
   # "ev_eff_fun" => fn input -> Count.ev_fun(input) end,
   "trans" => fn input -> Count.trans(input) end,

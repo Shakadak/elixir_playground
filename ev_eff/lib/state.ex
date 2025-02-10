@@ -1,9 +1,16 @@
 defmodule State.Get do
   defstruct []
+
+  def appropriate?(_, %impl{}), do: impl == State
+
+  def selectOp(_, %_{get: op}), do: op
 end
 
 defmodule State.Put do
   defstruct []
+
+  def appropriate?(_, %impl{}), do: impl == State
+  def selectOp(_, %_{put: op}), do: op
 end
 
 defmodule State do
@@ -53,6 +60,9 @@ defmodule State do
     }
     handlerLocal2(init, handler, action)
   end
+
+  def appropriate?(_, %State{}), do: true
+  def appropriate?(_, %_{}), do: false
 end
 
 defimpl Context, for: State.Get do
