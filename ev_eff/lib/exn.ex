@@ -8,7 +8,7 @@ defmodule Exn do
   ]
   defstruct @enforce_keys 
 
-  import Eff
+  use Eff
 
   def failure, do: %Exn.Failure{}
 
@@ -17,8 +17,8 @@ defmodule Exn do
     handlerRet(&{Just, &1}, handler, action)
   end
 
-  def exceptDefault(x, action) do
-    handler(%Exn{failure: operation(fn {}, _ -> pure(x) end)}, action)
+  def exceptDefault(default, action) do
+    handler(%Exn{failure: operation(fn {}, _ -> pure(default) end)}, action)
   end
 end
 

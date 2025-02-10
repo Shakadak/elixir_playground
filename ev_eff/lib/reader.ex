@@ -8,7 +8,7 @@ defmodule Reader do
   ]
   defstruct @enforce_keys 
 
-  import Eff
+  use Eff
 
   def ask, do: %Reader.Ask{}
 

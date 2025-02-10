@@ -13,9 +13,9 @@ defmodule State do
   ]
   defstruct @enforce_keys 
 
-  import Eff
   import Local
-  import Bind
+
+  use Eff
 
   def get, do: %State.Get{}
   def put, do: %State.Put{}

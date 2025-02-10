@@ -4,8 +4,17 @@ defmodule Eff do
   import Context.{CCons, CNil}
   import Op
 
+  defmacro __using__([]) do
+    quote do
+      import Bind
+      import Eff
+      require Op
+    end
+  end
+
   defmacro eff(f) do
-    {Eff, f}
+    # {Eff, f}
+    f
   end
 
   def pure(x), do: eff(fn _ctx -> Ctl.pure(x) end)
@@ -57,28 +66,34 @@ defmodule Eff do
     raise "Context not found for selector : #{inspect(selector)}"
   end
 
+  defmacro function(f) do
+    quote do
+      Op.op(fn _m, ctx, x -> under(ctx, unquote(f).(x)) end)
+    end
+  end
+
   def value(x) do
     function(fn {} -> pure(x) end)
-  end
-
-  def function(f) do
-    op(fn _m, ctx, x -> under(ctx, f.(x)) end)
-  end
-
-  def function2(f) do
-    operation(fn x, k -> k.(f.(x)) end)
   end
 
   @doc """
   operation :: (a -> (b -> Eff e ans) -> Eff e ans) -> Op a b e ans
   """
-  def operation(f) do
-    op(fn m, ctx, x ->
-      Ctl.yield(m, fn ctlk ->
-        k = fn y -> eff(fn ctx_ -> guard(ctx, ctx_, ctlk, y) end) end
-        under(ctx, f.(x, k))
+  defmacro operation(f) do
+    quote do
+      Op.op(fn m, ctx, x ->
+        Ctl.yield(m, fn ctlk ->
+          k = fn y -> eff(fn ctx_ -> guard(ctx, ctx_, ctlk, y) end) end
+          under(ctx, unquote(f).(x, k))
+        end)
       end)
-    end)
+    end
+  end
+
+  defmacro except(f) do
+    quote do
+      Op.op(fn m, ctx, x -> Ctl.yield(m, fn _ctlk -> under(ctx, unquote(f).(x)) end) end)
+    end
   end
 
   def guard(ctx, ctx, k, x), do: k.(x)

@@ -14,7 +14,7 @@ defmodule Bind do
       {:<-, _, _} = bad_body -> [bad_body]
     end
     rec_mdo(module, body)
-    |> case do x -> IO.puts(Macro.to_string(x)) ; x end
+    # |> case do x -> IO.puts(Macro.to_string(x)) ; x end
   end
 
   def rec_mdo(_module, [{:<-, context, _}]) do

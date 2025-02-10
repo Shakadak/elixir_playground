@@ -7,8 +7,7 @@ defmodule Parser do
   @enforce_keys [:satisfy]
   defstruct @enforce_keys
 
-  import Bind
-  import Eff
+  use Eff
 
   import Amb
   import Exn

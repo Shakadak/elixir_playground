@@ -7,8 +7,7 @@ defmodule Amb do
   @enforce_keys [:flip]
   defstruct @enforce_keys
 
-  import Bind
-  import Eff
+  use Eff
 
   def flip, do: %Amb.Op{op: :flip}
 
