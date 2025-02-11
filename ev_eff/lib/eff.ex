@@ -2,7 +2,7 @@ defmodule Eff do
   import Bind
 
   import Context.{CCons, CNil}
-  import Op
+  require Op
 
   defmacro __using__([]) do
     quote do
@@ -13,22 +13,26 @@ defmodule Eff do
   end
 
   defmacro eff(f) do
-    # {Eff, f}
-    f
+    {Eff, f}
+    # f
   end
 
   @doc """
   under :: Context e -> Eff e a -> Ctl a
   """
-  defmacro under(ctx, eff(eff)), do: quote(do: unquote(eff).(unquote(ctx)))
+  #defmacro under(ctx, eff(eff)), do: quote(do: unquote(eff).(unquote(ctx)))
+  def under(ctx, eff(eff)), do: eff.(ctx)
 
-  def pure(x), do: eff(fn _ctx -> Ctl.pure(x) end)
+  def pure(x), do: eff(fn _ctx ->
+    Ctl.pure(x)
+  end)
 
+  @compile {:inline, bind: 2}
   def bind(eff(eff), f) do
     eff(fn ctx ->
       m Ctl do
-        ctl <- eff.(ctx)
-        under(ctx, f.(ctl))
+        ctl <- eff.(ctx) # |> dbg()
+        under(ctx, f.(ctl)) #( |> dbg())
       end
     end)
   end
@@ -41,23 +45,30 @@ defmodule Eff do
   end
 
   def runEff(eff(eff)) do
-    Ctl.runCtl(eff.(cnil()))
+    ctl = eff.(cnil())
+    Ctl.runCtl(ctl)
   end
 
   def perform(%impl{} = selectOp, x) do
+    withSubcontext(fn ccons(m, h, t, ctx_) ->
+      new_ctx = t.(ctx_)
+      impl.runOp(selectOp, h, m, new_ctx, x)
+    end, selectOp)
+    # eff(fn ctx ->
+    #   ccons(m, h, t, ctx_) = selectContext(ctx, selectOp)
+    #   impl.runOp(selectOp, h, m, t.(ctx_), x)
+    # end)
+  end
+
+  def withSubcontext(f, selectOp) do
     eff(fn ctx ->
-      case selectContext(ctx, selectOp) do
-        {SubContext, ccons(m, h, t, ctx_)} ->
-          case impl.runOp(selectOp, h) do
-            op(f) -> f.(m, t.(ctx_), x)
-          end
-      end
+      f.(selectContext(ctx, selectOp))
     end)
   end
 
   def selectContext(ccons(_m, h, _t, sub_ctx) = ctx, %impl{} = selector) do
     case impl.appropriate?(selector, h) do
-      true -> {SubContext, ctx}
+      true -> ctx
       false -> selectContext(sub_ctx, selector)
     end
   end
@@ -66,10 +77,12 @@ defmodule Eff do
     raise "Context not found for selector : #{inspect(selector)}"
   end
 
-  defmacro function(f) do
-    quote location: :keep do
-      Op.op(fn _m, ctx, x -> under(ctx, unquote(f).(x)) end)
-    end
+  def function(f) do
+  #defmacro function(f) do
+    #quote location: :keep do
+      #Op.op(fn _m, ctx, x -> under(ctx, unquote(f).(x)) end)
+      Op.op(fn _m, ctx, x -> under(ctx, f.(x)) end)
+    #end
   end
 
   def value(x) do
@@ -79,15 +92,21 @@ defmodule Eff do
   @doc """
   operation :: (a -> (b -> Eff e ans) -> Eff e ans) -> Op a b e ans
   """
-  defmacro operation(f) do
-    quote do
+  #defmacro operation(f) do
+  def operation(f) do
+    #quote do
       Op.op(fn m, ctx, x ->
         Ctl.yield(m, fn ctlk ->
-          k = fn y -> eff(fn ctx_ -> guard(ctx, ctx_, ctlk, y) end) end
-          under(ctx, unquote(f).(x, k))
+          k = fn y ->
+            eff(fn ctx_ ->
+              guard(ctx, ctx_, ctlk, y)
+            end)
+          end
+          #under(ctx, unquote(f).(x, k))
+          under(ctx, f.(x, k))
         end)
       end)
-    end
+    #end
   end
 
   defmacro except(f) do
@@ -109,27 +128,22 @@ defmodule Eff do
     end)
   end
 
-  def mask(eff), do: eff(fn ccons(_m, _h, _t, ctx) -> under(ctx, eff) end)
+  def mask(eff), do: eff(fn ccons(_m, _h, _t, ctx) ->
+    under(ctx, eff)
+  end)
 
   def handlerRet(ret, handler, action) do
-    handler(handler, m Eff do x <- action ; pure(ret.(x)) end)
+    handler(handler, m Eff do
+      x <- action
+      pure(ret.(x))
+    end)
   end
 
   def handlerRetEff(ret, h, action) do
-    handler(h, m Eff do x <- action ; mask(ret.(x)) end)
-  end
-
-  def handlerLocal(init, h, action) do
-    Local.local(init, handlerHide(h, action))
-  end
-
-  def handlerLocalRet(init, ret, h, action) do
-    Local.local(init, handlerHideRetEff(fn x ->
-      m Eff do
-        y <- Local.localGet()
-        pure(ret.(x, y))
-      end
-    end, h, action))
+    handler(h, m Eff do
+      x <- action
+      mask(ret.(x))
+    end)
   end
 
   def handlerHide(h, action) do
@@ -143,9 +157,11 @@ defmodule Eff do
 
   def handlerHideRetEff(ret, h, action) do
     eff fn ccons(m_, h_, g_, ctx_) = ctx ->
+      transform = &ccons(m_, h_, g_, &1)
       Ctl.prompt(fn m -> m Ctl do
-        x <- under(ccons(m, h, &ccons(m_, h_, g_, &1), ctx_), action)
-        under(ctx, ret.(x))
+        x <- under(ccons(m, h, transform, ctx_), action)
+        ef = ret.(x)
+        under(ctx, ef)
       end end)
     end
   end

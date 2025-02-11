@@ -1,6 +1,11 @@
 defmodule Eff.Exception.Op do
+  require Op
   @enforce_keys [:op]
   defstruct @enforce_keys
+
+  def appropriate?(_, %impl{}), do: impl == Eff.Exception
+
+  def runOp(_, %{throw_error: op}, m, ctx, x), do: op |> Op.runOp(m, ctx, x)
 end
 
 defmodule Eff.Exception do

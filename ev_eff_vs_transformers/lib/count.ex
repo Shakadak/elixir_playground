@@ -5,12 +5,28 @@ defmodule Count do
     pure_run_count(n)
   end
 
-  def ev_ets(n) do
-    Eff.runEff(State.state(n, ev_run_count()))
+  def ev_state(n) do
+    Eff.runEff(State.state(n, ev_state_run_count()))
   end
 
-  def ev_fun(n) do
-    Eff.runEff(State.state2(n, ev_run_count()))
+  def ev_local(n) do
+    Eff.runEff(Local.local(n, ev_local_run_count()))
+  end
+
+  def ev_fstate(n) do
+    Eff.runEff(Fstate.state(n, ev_fstate_run_count()))
+  end
+
+  def ev_flocal(n) do
+    Eff.runEff(Flocal.local(n, ev_flocal_run_count()))
+  end
+
+  def ev_oflocal(n) do
+    Eff.runEff(B.State.local2(n, ev_oflocal_run_count()))
+  end
+
+  def ev_ofstate(n) do
+    Eff.runEff(B.State.state2(n, ev_ofstate_run_count()))
   end
 
   def trans(n) do
@@ -26,7 +42,8 @@ defmodule Count do
   def pure_run_count(0), do: 0
   def pure_run_count(n), do: pure_run_count(n - 1)
 
-  def ev_run_count do
+  @doc false
+  def ev_state_run_count do
     use Eff
     m Eff do
       i <- perform State.get(), {}
@@ -35,7 +52,87 @@ defmodule Count do
       else
         m Eff do
           perform State.put(), (i - 1)
-          ev_run_count()
+          ev_state_run_count()
+        end
+      end
+    end
+  end
+
+  @doc false
+  def ev_local_run_count do
+    use Eff
+    m Eff do
+      i <- Local.localGet()
+      if i == 0 do
+        Eff.pure(i)
+      else
+        m Eff do
+          Local.localPut(i - 1)
+          ev_local_run_count()
+        end
+      end
+    end
+  end
+
+  @doc false
+  def ev_fstate_run_count do
+    use Eff
+    m Eff do
+      i <- Fstate.get()
+      if i == 0 do
+        Eff.pure(i)
+      else
+        m Eff do
+          Fstate.put(i - 1) 
+          ev_fstate_run_count()
+        end
+      end
+    end
+  end
+
+  @doc false
+  def ev_flocal_run_count do
+    use Eff
+    m Eff do
+      i <- Flocal.get()
+      if i == 0 do
+        Eff.pure(i)
+      else
+        m Eff do
+          Flocal.put(i - 1)
+          ev_flocal_run_count()
+        end
+      end
+    end
+  end
+
+  @doc false
+  def ev_oflocal_run_count do
+    use Eff
+    m Eff do
+      i <- perform B.FLocal.lget(), {}
+      if i == 0 do
+        Eff.pure(i)
+      else
+        m Eff do
+          perform B.FLocal.lput(), (i - 1)
+          ev_oflocal_run_count()
+        end
+      end
+    end
+  end
+
+  @doc false
+  def ev_ofstate_run_count do
+    use Eff
+    m Eff do
+      i <- perform B.State.get(), {}
+      if i == 0 do
+        Eff.pure(i)
+      else
+        m Eff do
+          perform B.State.put(), (i - 1)
+          ev_ofstate_run_count()
         end
       end
     end

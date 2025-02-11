@@ -11,4 +11,10 @@ defmodule Op do
       }
     end
   end
+
+  defmacro runOp(op, marker, context, x) do
+    quote do
+      unquote(op).op.(unquote(marker), unquote(context), unquote(x))
+    end
+  end
 end

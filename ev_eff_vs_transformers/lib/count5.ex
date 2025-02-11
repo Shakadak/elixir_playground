@@ -10,10 +10,6 @@ defmodule Count5 do
     Eff.runEff(State.state(0, ev_run_count_5(n)))
   end
 
-  def ev_fun(n) do
-    Eff.runEff(State.state2(0, ev_run_count_5(n)))
-  end
-
   def trans(n) do
     Wrapped.State.evalStateT(trans_run_count_5(n), 0)
   end

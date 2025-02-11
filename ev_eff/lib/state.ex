@@ -1,16 +1,21 @@
 defmodule State.Get do
   defstruct []
 
+  import Op
+
   def appropriate?(_, %impl{}), do: impl == State
 
-  def selectOp(_, %_{get: op}), do: op
+  def runOp(_, %_{get: op(op)}, m, ctx, x), do: op.(m, ctx, x)
 end
 
 defmodule State.Put do
   defstruct []
 
+  import Op
+
   def appropriate?(_, %impl{}), do: impl == State
-  def selectOp(_, %_{put: op}), do: op
+  def appropriate?(_, %impl{}), do: impl == State
+  def runOp(_, %_{put: op(op)}, m, ctx, x), do: op.(m, ctx, x)
 end
 
 defmodule State do
@@ -33,32 +38,6 @@ defmodule State do
       put: function(fn x -> perform(lput(), x) end),
     }
     handlerLocal(init, handler, action)
-  end
-
-  def local2(init, action) do
-    handler = %FLocal{
-      lget: operation(fn {}, k -> pure(fn s -> m Eff do r <- k.(s) ; r.(s) end end) end),
-      lput: operation(fn s, k -> pure(fn _ -> m Eff do r <- k.({}) ; r.(s) end end) end),
-    }
-    m Eff do
-      f <- handler(handler, m Eff do
-        x <- action
-        pure(fn _s -> pure(x) end)
-      end)
-      f.(init)
-    end
-  end
-
-  def handlerLocal2(init, h, action) do
-    local2(init, handlerHide(h, action))
-  end
-
-  def state2(init, action) do
-    handler = %State{
-      get: function(fn {} -> perform(FLocal.lget(), {}) end),
-      put: function(fn x -> perform(FLocal.lput(), x) end),
-    }
-    handlerLocal2(init, handler, action)
   end
 
   def appropriate?(_, %State{}), do: true

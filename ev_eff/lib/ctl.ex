@@ -46,21 +46,41 @@ defmodule Ctl do
     _yield(m, op, &_pure/1)
   end
 
+  #def kcompose(g, f, x), do: f.(x) |> bind(g)
+
   def kcompose(g, f, x) do
     case f.(x) do
-      _pure(y) -> g.(y)
-      _yield(m, op, cont) -> _yield(m, op, &kcompose(f, cont, &1))
+      _pure(x) -> g.(x)
+      _yield(m, op, cont) -> _yield(m, op, &kcompose(g, cont, &1))
     end
   end
 
   def pure(x), do: _pure(x)
 
-  def bind(_pure(x), f), do: f.(x)
-  def bind(_yield(m, op, cont), f), do: _yield(m, op, &kcompose(f, cont, &1))
+  # @compile {:inline, bind: 2}
+  # def bind(m, f) do
+  #   case m do
+  #     _pure(x) -> f.(x)
+  #     _yield(m, op, cont) -> _yield(m, op, &kcompose(f, cont, &1))
+  #   end
+  # end
+
+  defmacro bind(m, f) do
+    quote do
+      case unquote(m) do
+        _pure(x) -> unquote(f).(x)
+        _yield(m, op, cont) -> _yield(m, op, &kcompose(unquote(f), cont, &1))
+      end
+    end
+  end
+
+  #def bind(_pure(x), f), do: f.(x)
+  #def bind(_yield(m, op, cont), f), do: _yield(m, op, &kcompose(f, cont, &1))
 
   def prompt(action) do
     freshMarker(fn m ->
-      mprompt(m, action.(m))
+      ctl_val = action.(m)
+      mprompt(m, ctl_val)
     end)
   end
 
@@ -70,7 +90,8 @@ defmodule Ctl do
   def mprompt(_m, _pure(x)), do: _pure(x)
   def mprompt(m, _yield(n, op, cont)) do
     cont_ = fn x ->
-      mprompt(m, cont.(x))
+      ctl_val = cont.(x)
+      mprompt(m, ctl_val)
     end
     case mmatch(m, n) do
       Nothing -> _yield(n, op, cont_) # Keep yielding
