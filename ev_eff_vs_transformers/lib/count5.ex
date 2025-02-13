@@ -6,8 +6,12 @@ defmodule Count5 do
     ret
   end
 
-  def ev_ets(n) do
-    Eff.runEff(State.state(0, ev_run_count_5(n)))
+  def ev_local(n) do
+    Eff.runEff(Local.local(0, ev_local_run_count_5(n)))
+  end
+
+  def ev_state(n) do
+    Eff.runEff(State.state(0, ev_state_run_count_5(n)))
   end
 
   def trans(n) do
@@ -29,7 +33,24 @@ defmodule Count5 do
   end
 
   @doc false
-  def ev_run_count_5(n) do
+  def ev_local_run_count_5(n) do
+    use Eff
+    range = n..0//-1
+    f = fn
+      x, acc when rem(x, 5) == 0 ->
+        m Eff do
+          i <- Local.localGet()
+          Local.localPut(i + 1)
+          Eff.pure(max(acc, x))
+        end
+
+      x, acc -> Eff.pure(max(acc, x))
+    end
+    reduceMEff(range, 1, f)
+  end
+
+  @doc false
+  def ev_state_run_count_5(n) do
     use Eff
     range = n..0//-1
     f = fn

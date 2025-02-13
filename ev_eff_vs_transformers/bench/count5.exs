@@ -6,7 +6,8 @@ inputs = %{
 
 contenders = %{
   # "pure" => fn input -> Count5.pure(input) end,
-  "ev_eff_ets" => fn input -> Count5.ev_ets(input) end,
+  "ev_local" => fn input -> Count5.ev_local(input) end,
+  "ev_state" => fn input -> Count5.ev_state(input) end,
   # "ev_eff_fun" => fn input -> Count5.ev_fun(input) end,
   "trans" => fn input -> Count5.trans(input) end,
   "freer" => fn input -> Count5.freer(input) end,

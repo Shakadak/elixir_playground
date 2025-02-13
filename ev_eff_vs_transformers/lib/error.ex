@@ -37,7 +37,7 @@ defmodule Error do
 
   @doc false
   def ev_run_error(xs) do
-    import Eff
+    use Eff
     f = fn
       0, _acc -> perform Eff.Exception.throw_error(), 0
       x, acc -> Eff.pure(acc * x)

@@ -3,14 +3,6 @@ defmodule Ctl.Pure do
     :result,
   ]
   defstruct @enforce_keys
-
-  defmacro _pure(result) do
-    quote do
-      %unquote(__MODULE__){
-        result: unquote(result),
-      }
-    end
-  end
 end
 
 defmodule Ctl.Yield do
@@ -20,30 +12,37 @@ defmodule Ctl.Yield do
     :cont,
   ]
   defstruct @enforce_keys
+end
+
+defmodule Ctl do
+  import Bind
 
   defmacro _yield(marker, op, cont) do
     quote do
-      %unquote(__MODULE__){
+      %unquote(__MODULE__.Yield){
         marker: unquote(marker),
         op: unquote(op),
         cont: unquote(cont),
       }
     end
+    #|> tap(&IO.puts("_yield: " <> Macro.to_string(&1)))
   end
-end
 
-defmodule Ctl do
-  import Ctl.Pure, only: [
-    _pure: 1,
-  ]
-  import Ctl.Yield, only: [
-    _yield: 3,
-  ]
+  defmacro _pure(result) do
+    quote do
+      %unquote(__MODULE__.Pure){
+        result: unquote(result),
+      }
+    end
+  end
 
-  import Bind
-
-  def yield(m, op) do
-    _yield(m, op, &_pure/1)
+  defmacro yield(banana, split) do
+    quote do
+      _yield(unquote(banana), unquote(split), &_pure/1)
+    end
+    |> Eff.Internal.wrap(__CALLER__.module, __MODULE__, [:_yield, :_pure])
+    #|> tap(&IO.inspect(&1))
+    #|> tap(&IO.puts("yield: " <> Macro.to_string(&1)))
   end
 
   #def kcompose(g, f, x), do: f.(x) |> bind(g)
@@ -55,7 +54,19 @@ defmodule Ctl do
     end
   end
 
-  def pure(x), do: _pure(x)
+  defmacro pure(x) do
+    quote do
+      _pure(unquote(x))
+    end
+    |> Eff.Internal.wrap(__CALLER__.module, __MODULE__, [:_pure])
+  end
+
+  # defmacro pure(x) do
+  #   quote do
+
+  #     _pure(unquote(x))
+  #   end
+  # end
 
   # @compile {:inline, bind: 2}
   # def bind(m, f) do
@@ -66,11 +77,42 @@ defmodule Ctl do
   # end
 
   defmacro bind(m, f) do
-    quote do
+    quote generated: true do
+    # quote do
       case unquote(m) do
         _pure(x) -> unquote(f).(x)
         _yield(m, op, cont) -> _yield(m, op, &kcompose(unquote(f), cont, &1))
       end
+    end
+    |> Eff.Internal.wrap(__CALLER__.module, __MODULE__, [:_pure, :_yield, :kcompose])
+  end
+
+  defmacro bind_pure(m, f) do
+    # quote generated: true do
+    quote do
+      case unquote(m) do
+        _pure(x) -> unquote(f).(x)
+      end
+    end
+    |> Eff.Internal.wrap(__CALLER__.module, __MODULE__, [:_pure, :_yield, :kcompose])
+  end
+
+  defmacro unsafeIO(ref) do
+    quote do
+      _pure(unquote(ref))
+    end
+    |> Eff.Internal.wrap(__CALLER__.module, __MODULE__, [:_pure])
+  end
+
+  defmacro readIORef(ref) do
+    quote do
+      :ets.lookup_element(unquote(ref), :ref, 2)
+    end
+  end
+
+  defmacro writeIORef(ref, val) do
+    quote do
+    true = :ets.insert(unquote(ref), {:ref, unquote(val)})
     end
   end
 
@@ -110,10 +152,10 @@ defmodule Ctl do
 
   def unsafePromptIORef(init, action) do
     freshMarker fn m ->
-      m Ctl do
-        r <- unsafeIO(newIORef(init))
+      unsafeIO(newIORef(init))
+      |> bind_pure(fn r -> 
         mpromptIORef(r, action.(m, r))
-      end
+      end)
     end
   end
 
@@ -123,34 +165,30 @@ defmodule Ctl do
     tid
   end
 
-  def readIORef(ref) do
-    :ets.lookup_element(ref, :ref, 2)
-  end
-
-  def writeIORef(ref, val) do
-    true = :ets.insert(ref, {:ref, val})
-  end
-
-  def unsafeIO(ref) do
-    _pure(ref)
-  end
-
   def mpromptIORef(r, action) do
     case action do
       _pure(_) = p -> p
       _yield(m, op, cont) ->
-        m Ctl do
-          val <- unsafeIO(readIORef(r))
-          cont_ = fn x -> m Ctl do
-            unsafeIO(writeIORef(r, val))
-            mpromptIORef(r, cont.(x))
-          end end
+        unsafeIO(readIORef(r)) |> bind_pure(fn val ->
+          cont_ = fn x ->
+            unsafeIO(writeIORef(r, val)) |> bind_pure(fn _ ->
+              mpromptIORef(r, cont.(x))
+            end)
+          end
+
           _yield(m, op, cont_)
-        end
+        end)
     end
   end
 
   ### Bind
 
-  def _Bind(m, f), do: bind(m, f)
+  defmacro _Bind(m, f) do
+    quote do
+      bind(unquote(m), unquote(f))
+    end
+    |> Eff.Internal.wrap(__CALLER__.module, __MODULE__, [:bind])
+  end
+
+  ###
 end

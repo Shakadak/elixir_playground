@@ -37,7 +37,7 @@ defmodule Bind do
   end
 
   def rec_mdo(module, [{:<-, _context, [binding, expression]} | tail]) do
-    quote location: :keep do
+    quote do
       unquote(expression)
       |> unquote(module)._Bind(fn unquote(binding) ->
         unquote(rec_mdo(module, tail))
@@ -46,14 +46,14 @@ defmodule Bind do
   end
 
   def rec_mdo(module, [{:=, _context, [_binding, _expression]} = line | tail]) do
-    quote location: :keep do
+    quote do
       unquote(line)
       unquote(rec_mdo(module, tail))
     end
   end
 
   def rec_mdo(module, [expression | tail]) do
-    quote location: :keep do
+    quote do
       unquote(expression)
       |> unquote(module)._Bind(fn _ ->
         unquote(rec_mdo(module, tail))

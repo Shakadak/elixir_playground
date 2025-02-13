@@ -140,7 +140,7 @@ defmodule Count do
 
   @doc false
   def trans_run_count do
-    compute Workflow.State, debug: true do
+    compute Workflow.State do
       let! i = Wrapped.State.get()
       match i do
         0 -> pure i

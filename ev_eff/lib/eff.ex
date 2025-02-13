@@ -4,37 +4,45 @@ defmodule Eff do
   import Context.{CCons, CNil}
   require Op
 
+  require Ctl
+
   defmacro __using__([]) do
     quote do
       import Bind
       import Eff
       require Op
+      require Ctl
     end
   end
 
   defmacro eff(f) do
-    {Eff, f}
-    # f
+    # {Eff, f}
+    f
   end
 
   @doc """
   under :: Context e -> Eff e a -> Ctl a
   """
-  #defmacro under(ctx, eff(eff)), do: quote(do: unquote(eff).(unquote(ctx)))
-  def under(ctx, eff(eff)), do: eff.(ctx)
+  defmacro under(ctx, eff), do: quote(do: unquote(eff).(unquote(ctx)))
+  #def under(ctx, eff(eff)), do: eff.(ctx)
 
-  def pure(x), do: eff(fn _ctx ->
-    Ctl.pure(x)
-  end)
+  defmacro pure(x) do
+    quote do
+      eff(fn _ctx ->
+        Ctl.pure(unquote(x))
+      end)
+    end
+  end
 
-  @compile {:inline, bind: 2}
-  def bind(eff(eff), f) do
+  defmacro bind(eff, f) do
+    quote do
     eff(fn ctx ->
       m Ctl do
-        ctl <- eff.(ctx) # |> dbg()
-        under(ctx, f.(ctl)) #( |> dbg())
+        ctl <- under(ctx, unquote(eff))
+        under(ctx, unquote(f).(ctl))
       end
     end)
+    end
   end
 
   def map(f, m1) do

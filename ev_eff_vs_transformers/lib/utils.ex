@@ -1,4 +1,6 @@
 defmodule Utils do
+  use Eff
+
   def reduceMEff(xs, z0, f) do
     Enum.reduce(xs, Eff.pure(z0), fn x, macc ->
       Eff.bind(macc, fn acc -> f.(x, acc) end)
@@ -13,6 +15,7 @@ defmodule Utils do
   end
 
   def reduceMTransResult(xs, z0, f) do
+    require Base.Result
     Enum.reduce(xs, Base.Result.pure(z0), fn x, macc ->
       Base.Result.bind(macc, fn acc -> f.(x, acc) end)
     end)

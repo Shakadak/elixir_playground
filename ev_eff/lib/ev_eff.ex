@@ -3,8 +3,7 @@ defmodule EvEff do
   Documentation for `EvEff`.
   """
 
-  import Bind
-  import Eff
+  use Eff
 
   import Reader
   import Exn
