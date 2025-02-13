@@ -1,28 +1,28 @@
 defmodule Ctl.Pure do
-  @enforce_keys [
+  @keys [
     :result,
   ]
-  defstruct @enforce_keys
+  defstruct @keys
 end
 
 defmodule Ctl.Yield do
-  @enforce_keys [
+  @keys [
     :marker,
     :op,
     :cont,
   ]
-  defstruct @enforce_keys
+  defstruct @keys
 end
 
 defmodule Ctl do
-  import Bind
 
   defmacro _yield(marker, op, cont) do
     quote do
-      %unquote(__MODULE__.Yield){
-        marker: unquote(marker),
-        op: unquote(op),
-        cont: unquote(cont),
+      {
+        unquote(__MODULE__.Yield),
+        unquote(marker),
+        unquote(op),
+        unquote(cont),
       }
     end
     #|> tap(&IO.puts("_yield: " <> Macro.to_string(&1)))
@@ -30,8 +30,9 @@ defmodule Ctl do
 
   defmacro _pure(result) do
     quote do
-      %unquote(__MODULE__.Pure){
-        result: unquote(result),
+      {
+        unquote(__MODULE__.Pure),
+        unquote(result),
       }
     end
   end
@@ -76,12 +77,48 @@ defmodule Ctl do
   #   end
   # end
 
+  require Eff.Internal
+
   defmacro bind(m, f) do
+    x = Macro.unique_var(:x, __MODULE__)
+    marker = Macro.unique_var(:m, __MODULE__)
+    op = Macro.unique_var(:op, __MODULE__)
+    cont = Macro.unique_var(:cont, __MODULE__)
+    pure_branch = case f do
+      {:fn, meta, [{:->, _, [[pat], clause]}]} ->
+        _ = IO.puts("fn detected in file #{__CALLER__.file}, at line #{Keyword.fetch!(meta, :line)}")
+        #_ = IO.inspect(ast)
+        _ = IO.puts(Macro.to_string(pat))
+        _ = IO.puts(Macro.to_string(clause))
+        case pat do
+          {n, _, c} = var when Eff.Internal.is_var(var) ->
+            ast = Macro.postwalk(clause, fn
+              {^n, _, ^c} -> x
+              other -> other
+            end)
+          {:raw, ast}
+
+          other -> {:fn, other}
+        end
+
+      {:fn, meta, _ast} ->
+        _ = IO.puts("fn multi_clause detected in file #{__CALLER__.file}, at line #{Keyword.fetch!(meta, :line)}")
+        #_ = IO.inspect(ast)
+        #_ = IO.puts(Macro.to_string(f))
+        {:fn, f}
+
+      other -> {:fn, other}
+    end
+
+    pure_branch_ast = case pure_branch do
+      {:raw, ast} -> ast
+      {:fn, ast} -> quote do unquote(ast).(unquote(x)) end
+    end
+
     quote generated: true do
-    # quote do
       case unquote(m) do
-        _pure(x) -> unquote(f).(x)
-        _yield(m, op, cont) -> _yield(m, op, &kcompose(unquote(f), cont, &1))
+        _pure(unquote(x)) -> unquote(pure_branch_ast)
+        _yield(unquote(marker), unquote(op), unquote(cont)) -> _yield(unquote(marker), unquote(op), &kcompose(unquote(f), unquote(cont), &1))
       end
     end
     |> Eff.Internal.wrap(__CALLER__.module, __MODULE__, [:_pure, :_yield, :kcompose])

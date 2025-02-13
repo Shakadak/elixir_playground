@@ -45,11 +45,15 @@ defmodule Eff do
     end
   end
 
-  def map(f, m1) do
-    m Eff do
-      x1 <- m1
-      pure(f.(x1))
+  defmacro _Bind(input, continuation) do
+    quote do
+      bind(unquote(input), unquote(continuation))
     end
+    |> Eff.Internal.wrap(__CALLER__.module, __MODULE__, [:bind])
+  end
+
+  def map(f, m1) do
+    bind(m1, fn a -> pure(f.(a)) end)
   end
 
   def runEff(eff(eff)) do
@@ -141,17 +145,11 @@ defmodule Eff do
   end)
 
   def handlerRet(ret, handler, action) do
-    handler(handler, m Eff do
-      x <- action
-      pure(ret.(x))
-    end)
+    handler(handler, map(action, ret))
   end
 
   def handlerRetEff(ret, h, action) do
-    handler(h, m Eff do
-      x <- action
-      mask(ret.(x))
-    end)
+    handler(h, map(action, ret))
   end
 
   def handlerHide(h, action) do
@@ -172,9 +170,5 @@ defmodule Eff do
         under(ctx, ef)
       end end)
     end
-  end
-
-  def _Bind(input, continuation) do
-    bind(input, continuation)
   end
 end

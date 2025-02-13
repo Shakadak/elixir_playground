@@ -14,4 +14,6 @@ defmodule Eff.Internal do
       ast -> ast
     end)
   end
+
+  defguard is_var(v) when is_tuple(v) and tuple_size(v) == 3 and is_atom(elem(v, 0)) and is_atom(elem(v, 2))
 end
