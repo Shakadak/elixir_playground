@@ -3,6 +3,7 @@ defmodule Utils do
   require Wrapped.State
   require Base.Result
   require Freer
+  require Freer.Q
 
   def reduceMEff(xs, z0, f) do
     Enum.reduce(xs, Eff.pure(z0), fn x, macc ->
@@ -25,6 +26,12 @@ defmodule Utils do
   def reduceMFreer(xs, z0, f) do
     Enum.reduce(xs, Freer.pure(z0), fn x, macc ->
       Freer.bind(macc, fn acc -> f.(x, acc) end)
+    end)
+  end
+
+  def reduceMFreerQ(xs, z0, f) do
+    Enum.reduce(xs, Freer.Q.pure(z0), fn x, macc ->
+      Freer.Q.bind(macc, fn acc -> f.(x, acc) end)
     end)
   end
 end

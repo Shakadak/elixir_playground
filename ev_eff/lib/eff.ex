@@ -16,14 +16,25 @@ defmodule Eff do
   end
 
   defmacro eff(f) do
-    # {Eff, f}
     f
   end
+
+  require Eff.Internal
 
   @doc """
   under :: Context e -> Eff e a -> Ctl a
   """
-  defmacro under(ctx, eff), do: quote(do: unquote(eff).(unquote(ctx)))
+  defmacro under(ctx, eff) do
+    #IO.inspect(__CALLER__, label: "under.__CALLER__")
+    # _ = IO.puts(Macro.to_string(eff))
+    #pure_branch = Eff.Internal.convert_fn(ctx, Macro.expand(eff, __CALLER__))
+    pure_branch = Eff.Internal.convert_fn(ctx, eff)
+
+    case pure_branch do
+      {:raw, ast} -> ast
+      {:fn, ast} -> quote(do: unquote(ast).(unquote(ctx)))
+    end
+  end
   #def under(ctx, eff(eff)), do: eff.(ctx)
 
   defmacro pure(x) do
@@ -35,13 +46,22 @@ defmodule Eff do
   end
 
   defmacro bind(eff, f) do
-    quote do
-    eff(fn ctx ->
-      m Ctl do
-        ctl <- under(ctx, unquote(eff))
-        under(ctx, unquote(f).(ctl))
+    ctl = Macro.unique_var(:ctl, __MODULE__)
+
+    next =
+      Eff.Internal.convert_fn(ctl, f)
+      |> case do
+        {:raw, ast} -> ast
+        {:fn, _ast} -> quote do unquote(f).(unquote(ctl)) end
       end
-    end)
+
+    quote do
+      eff(fn ctx ->
+        m Ctl do
+          unquote(ctl) <- under(ctx, unquote(eff))
+          under(ctx, unquote(next))
+        end
+      end)
     end
   end
 
@@ -52,7 +72,7 @@ defmodule Eff do
     |> Eff.Internal.wrap(__CALLER__.module, __MODULE__, [:bind])
   end
 
-  def map(f, m1) do
+  def map(m1, f) do
     bind(m1, fn a -> pure(f.(a)) end)
   end
 
@@ -62,14 +82,14 @@ defmodule Eff do
   end
 
   def perform(%impl{} = selectOp, x) do
-    withSubcontext(fn ccons(m, h, t, ctx_) ->
-      new_ctx = t.(ctx_)
-      impl.runOp(selectOp, h, m, new_ctx, x)
-    end, selectOp)
-    # eff(fn ctx ->
-    #   ccons(m, h, t, ctx_) = selectContext(ctx, selectOp)
-    #   impl.runOp(selectOp, h, m, t.(ctx_), x)
-    # end)
+    # withSubcontext(fn ccons(m, h, t, ctx_) ->
+    #   new_ctx = t.(ctx_)
+    #   impl.runOp(selectOp, h, m, new_ctx, x)
+    # end, selectOp)
+    eff(fn ctx ->
+      ccons(m, h, t, ctx_) = selectContext(ctx, selectOp)
+      impl.runOp(selectOp, h, m, t.(ctx_), x)
+    end)
   end
 
   def withSubcontext(f, selectOp) do
@@ -148,8 +168,9 @@ defmodule Eff do
     handler(handler, map(action, ret))
   end
 
+  @doc false
   def handlerRetEff(ret, h, action) do
-    handler(h, map(action, ret))
+    handler(h, map(action, &mask(ret.(&1))))
   end
 
   def handlerHide(h, action) do

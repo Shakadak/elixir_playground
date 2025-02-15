@@ -38,6 +38,11 @@ defmodule Count do
     ret
   end
 
+  def freer_q(n) do
+    {ret, _state} = Freer.Q.run(Freer.Q.State.runState(freer_q_run_count(), n))
+    ret
+  end
+
   @doc false
   def pure_run_count(0), do: 0
   def pure_run_count(n), do: pure_run_count(n - 1)
@@ -161,6 +166,20 @@ defmodule Count do
         _ ->
           do! Freer.State.put(i - 1)
           pure! freer_run_count()
+      end
+    end
+  end
+
+  @doc false
+  def freer_q_run_count do
+    import ComputationExpression
+    compute Workflow.Freer.Q do
+      let! i = Freer.Q.State.get()
+      match i do
+        0 -> pure i
+        _ ->
+          do! Freer.Q.State.put(i - 1)
+          pure! freer_q_run_count()
       end
     end
   end

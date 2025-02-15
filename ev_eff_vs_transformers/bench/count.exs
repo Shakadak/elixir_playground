@@ -11,6 +11,7 @@ contenders = %{
   # "ev_eff_fun" => fn input -> Count.ev_flocal(input) end,
   "trans" => fn input -> Count.trans(input) end,
   "freer" => fn input -> Count.freer(input) end,
+  "freer_q" => fn input -> Count.freer_q(input) end,
 }
 
 Benchee.run(contenders, inputs: inputs, title: title)

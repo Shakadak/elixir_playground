@@ -11,6 +11,7 @@ contenders = %{
   # "ev_default" => fn input -> Error.ev_default(input) end,
   "trans" => fn input -> Error.trans(input) end,
   "freer" => fn input -> Error.freer(input) end,
+  "freer_q" => fn input -> Error.freer_q(input) end,
 }
 
 Benchee.run(contenders, inputs: inputs, title: title)

@@ -23,6 +23,11 @@ defmodule Count5 do
     ret
   end
 
+  def freer_q(n) do
+    {ret, _st} = Freer.Q.run Freer.Q.State.runState(freer_q_run_count_5(n), 0)
+    ret
+  end
+
   @doc false
   def pure_run_count_5(n) do
     range = n..0//-1
@@ -100,5 +105,23 @@ defmodule Count5 do
       x, acc -> Freer.pure(max(acc, x))
     end
     reduceMFreer(range, 1, f)
+  end
+
+  @doc false
+  def freer_q_run_count_5(n) do
+    import ComputationExpression
+    require Freer.Q
+    range = n..0//-1
+    f = fn
+      x, acc when rem(x, 5) == 0 ->
+        compute Workflow.Freer.Q do
+          let! i = Freer.Q.State.get()
+          do! Freer.Q.State.put(i + 1)
+          pure max(acc, x)
+        end
+
+      x, acc -> Freer.Q.pure(max(acc, x))
+    end
+    reduceMFreerQ(range, 1, f)
   end
 end

@@ -25,6 +25,10 @@ defmodule Error do
     Freer.run(Freer.Exception.runException(freer_run_error(xs)))
   end
 
+  def freer_q(xs) do
+    Freer.Q.run(Freer.Q.Exception.runException(freer_q_run_error(xs)))
+  end
+
   @doc false
   def pure_run_error(xs) do
     f = fn
@@ -63,5 +67,15 @@ defmodule Error do
       x, acc -> Freer.pure(acc * x)
     end
     reduceMFreer(xs, 1, f)
+  end
+
+  @doc false
+  def freer_q_run_error(xs) do
+    require Freer.Q
+    f = fn
+      0, _acc -> Freer.Q.Exception.throw_error(0)
+      x, acc -> Freer.Q.pure(acc * x)
+    end
+    reduceMFreerQ(xs, 1, f)
   end
 end

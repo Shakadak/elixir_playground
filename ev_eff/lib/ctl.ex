@@ -84,33 +84,8 @@ defmodule Ctl do
     marker = Macro.unique_var(:m, __MODULE__)
     op = Macro.unique_var(:op, __MODULE__)
     cont = Macro.unique_var(:cont, __MODULE__)
-    pure_branch = case f do
-      {:fn, meta, [{:->, _, [[pat], clause]}]} ->
-        _ = IO.puts("fn detected in file #{__CALLER__.file}, at line #{Keyword.fetch!(meta, :line)}")
-        #_ = IO.inspect(ast)
-        _ = IO.puts(Macro.to_string(pat))
-        _ = IO.puts(Macro.to_string(clause))
-        case pat do
-          {n, _, c} = var when Eff.Internal.is_var(var) ->
-            ast = Macro.postwalk(clause, fn
-              {^n, _, ^c} -> x
-              other -> other
-            end)
-          {:raw, ast}
 
-          other -> {:fn, other}
-        end
-
-      {:fn, meta, _ast} ->
-        _ = IO.puts("fn multi_clause detected in file #{__CALLER__.file}, at line #{Keyword.fetch!(meta, :line)}")
-        #_ = IO.inspect(ast)
-        #_ = IO.puts(Macro.to_string(f))
-        {:fn, f}
-
-      other -> {:fn, other}
-    end
-
-    pure_branch_ast = case pure_branch do
+    pure_branch_ast = case Eff.Internal.convert_fn(x, f) do
       {:raw, ast} -> ast
       {:fn, ast} -> quote do unquote(ast).(unquote(x)) end
     end
@@ -125,10 +100,10 @@ defmodule Ctl do
   end
 
   defmacro bind_pure(m, f) do
-    # quote generated: true do
+    x = Macro.unique_var(:x, __MODULE__)
     quote do
       case unquote(m) do
-        _pure(x) -> unquote(f).(x)
+        _pure(unquote(x)) -> unquote(f).(unquote(x))
       end
     end
     |> Eff.Internal.wrap(__CALLER__.module, __MODULE__, [:_pure, :_yield, :kcompose])
