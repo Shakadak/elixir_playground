@@ -29,6 +29,7 @@ defmodule EvEffVsTransformers.MixProject do
       {:transformers, path: "../../transformers.ex"},
       {:computation_expression, path: "../../computation_expression.ex"},
       {:hallux, "~> 1.2"},
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:benchee, "~> 1.0", only: :dev},
       {:beam_file, "~> 0.6.2", only: :dev},
       {:eflambe, "~> 0.3", only: :dev},

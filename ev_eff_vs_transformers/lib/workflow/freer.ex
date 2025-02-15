@@ -16,18 +16,18 @@ defmodule Workflow.Freer do
   defmacro _PureFrom(m), do: m
 end
 
-defmodule Workflow.Freer.Q do
+defmodule Workflow.FreerQ do
   defmacro _Bind(m, f) do
     quote do
-    require Freer.Q
-    Freer.Q.bind(unquote(m), unquote(f))
+    require FreerQ
+    FreerQ.bind(unquote(m), unquote(f))
     end
   end
 
   defmacro _Pure(x) do
     quote do
-    require Freer.Q
-    Freer.Q.pure(unquote(x))
+    require FreerQ
+    FreerQ.pure(unquote(x))
     end
   end
 

@@ -24,8 +24,12 @@ defmodule Local do
 
   defmacro local(io_ref) do
     quote do
-      %unquote(__MODULE__){
-        local: unquote(io_ref)
+      #%unquote(__MODULE__){
+      #  local: unquote(io_ref),
+      #}
+      {
+        unquote(__MODULE__),
+        unquote(io_ref),
       }
     end
   end
@@ -34,23 +38,60 @@ defmodule Local do
   import Context.CCons
   import Ctl
 
-  def lget, do: %Local.Op{op: :lget}
-  def lput, do: %Local.Op{op: :lput}
+  def lget, do: &lget/2
+  def lput, do: &lput/2
+
+  def lget(ccons(_m, h, _t, sub_ctx), x) do
+    case h do
+      local(ref) -> unsafeIO(readIORef(ref))
+      _ -> lget(sub_ctx, x)
+    end
+  end
+
+  def lput(ccons(_m, h, _t, sub_ctx), x) do
+    case h do
+      local(ref) -> unsafeIO(writeIORef(ref, x))
+      _ -> lput(sub_ctx, x)
+    end
+  end
+
+  def lget(h, _m, _ctx, _x) do
+    case h do
+      local(ref) -> unsafeIO(readIORef(ref))
+      _ -> false
+    end
+  end
+
+  def lput(h, _m, _ctx, x) do
+    case h do
+      local(ref) -> unsafeIO(writeIORef(ref, x))
+      _ -> false
+    end
+  end
+
+  #def lget(:appropriate?, %impl{}, _), do: impl == Local
+  # def lget(%{local: ref}, _m, _ctx, _x), do: unsafeIO(readIORef(ref))
+
+  #def lput(:appropriate?, %impl{}, _), do: impl == Local
+  #def lput(%{local: ref}, _m, _ctx, x), do: unsafeIO(writeIORef(ref, x))
 
   def local(init, action) do
     const = fn x, _ -> x end
     localRet(init, const, action)
   end
 
-  def localGet, do: perform(lget(), {})
-  def localPut(x), do: perform(lput(), x)
+  defmacro localGet, do: quote(do: perform(&Local.lget/2, {}))
+  defmacro localPut(x), do: quote(do: perform(&Local.lput/2, unquote(x)))
+
+  #def localGet, do: perform(&lget/1, {})
+  #def localPut(x), do: perform(&lput/1, x)
 
   def localRet(init, ret, action) do
     eff fn ctx ->
       unsafePromptIORef init, fn m, r ->
-        m Ctl do
+        m Ctl, debug: true do
           x <- Eff.under(ccons(m, local(r), & &1, ctx), action)
-          y <- unsafeIO(readIORef(r))
+          y = readIORef(r)
           Ctl.pure(ret.(x, y))
         end
       end

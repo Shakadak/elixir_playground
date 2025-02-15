@@ -7,13 +7,19 @@ defmodule Bind do
     BindImplementation.pure(expression(x, y))
   end
   """
-  defmacro m(module, do: block) do
+  defmacro m(module, opts \\ [], do: block) do
+    debug = case Keyword.get(opts, :debug, false) do
+      true -> &IO.puts(Macro.to_string(&1))
+      false -> & &1
+    end
+
     body = case block do
       {:__block__, _context, body} when is_list(body) -> body
       body when is_list(body) -> body
       {:<-, _, _} = bad_body -> [bad_body]
     end
     rec_mdo(module, body)
+    |> tap(debug)
     # |> case do x -> IO.puts(Macro.to_string(x)) ; x end
   end
 
@@ -36,13 +42,18 @@ defmodule Bind do
     line
   end
 
-  def rec_mdo(module, [{:<-, _context, [binding, expression]} | tail]) do
+  def rec_mdo(module, [{:<-, context, [binding, expression]} | tail]) do
+    fun = {:fn, context, [{:->, context, [[binding], rec_mdo(module, tail)]}]}
     quote do
       unquote(expression)
-      |> unquote(module)._Bind(fn unquote(binding) ->
-        unquote(rec_mdo(module, tail))
-      end)
+      |> unquote(module)._Bind(unquote(fun))
     end
+    #quote do
+    #  unquote(expression)
+    #  |> unquote(module)._Bind(fn unquote(binding) ->
+    #    unquote(rec_mdo(module, tail))
+    #  end)
+    #end
   end
 
   def rec_mdo(module, [{:=, _context, [_binding, _expression]} = line | tail]) do
@@ -53,6 +64,11 @@ defmodule Bind do
   end
 
   def rec_mdo(module, [expression | tail]) do
+    #fun = {:fn, context, [{:->, context, [[Macro.validate(:_, __MODULE__)], rec_mdo(module, tail)]}]}
+    #quote do
+    #  unquote(expression)
+    #  |> unquote(module)._Bind(unquote(fun))
+    #end
     quote do
       unquote(expression)
       |> unquote(module)._Bind(fn _ ->

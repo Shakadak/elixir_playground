@@ -16,7 +16,14 @@ defmodule Eff.Exception do
 
   use Eff
 
-  def throw_error, do: %Eff.Exception.Op{op: :throw_error}
+  #def throw_error, do: %Eff.Exception.Op{op: :throw_error}
+  def throw_error, do: &throw_error/2
+
+  def throw_error(ccons(m, h, t, sub_ctx), x) do
+    case h do
+      %Eff.Exception{throw_error: op} -> op |> Op.runOp(m, t.(sub_ctx), x)
+    end
+  end
 
   def catchError(action, h) do
     handler(%Eff.Exception{throw_error: except(fn x -> h.(x) end)}, action)

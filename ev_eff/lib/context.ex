@@ -4,7 +4,8 @@ defmodule Context.CNil do
 
   defmacro cnil do
     quote do
-      %unquote(__MODULE__){}
+      #%unquote(__MODULE__){}
+      unquote(__MODULE__)
     end
   end
 end
@@ -20,11 +21,18 @@ defmodule Context.CCons do
 
   defmacro ccons(marker, handler, transformer, context) do
     quote do
-      %unquote(__MODULE__){
-        marker: unquote(marker),
-        handler: unquote(handler),
-        transformer: unquote(transformer),
-        context: unquote(context),
+      #%unquote(__MODULE__){
+      #  marker: unquote(marker),
+      #  handler: unquote(handler),
+      #  transformer: unquote(transformer),
+      #  context: unquote(context),
+      #}
+      {
+        unquote(__MODULE__),
+        unquote(marker),
+        unquote(handler),
+        unquote(transformer),
+        unquote(context),
       }
     end
   end

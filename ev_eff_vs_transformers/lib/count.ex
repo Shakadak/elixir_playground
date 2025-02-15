@@ -1,6 +1,11 @@
 defmodule Count do
   import ComputationExpression
 
+  use Eff
+
+  require Local
+  require Flocal
+
   def pure(n) do
     pure_run_count(n)
   end
@@ -13,20 +18,12 @@ defmodule Count do
     Eff.runEff(Local.local(n, ev_local_run_count()))
   end
 
-  def ev_fstate(n) do
-    Eff.runEff(Fstate.state(n, ev_fstate_run_count()))
-  end
+  #def ev_fstate(n) do
+  #  Eff.runEff(Fstate.state(n, ev_fstate_run_count()))
+  #end
 
   def ev_flocal(n) do
     Eff.runEff(Flocal.local(n, ev_flocal_run_count()))
-  end
-
-  def ev_oflocal(n) do
-    Eff.runEff(B.State.local2(n, ev_oflocal_run_count()))
-  end
-
-  def ev_ofstate(n) do
-    Eff.runEff(B.State.state2(n, ev_ofstate_run_count()))
   end
 
   def trans(n) do
@@ -39,7 +36,7 @@ defmodule Count do
   end
 
   def freer_q(n) do
-    {ret, _state} = Freer.Q.run(Freer.Q.State.runState(freer_q_run_count(), n))
+    {ret, _state} = FreerQ.run(FreerQ.State.runState(freer_q_run_count(), n))
     ret
   end
 
@@ -49,7 +46,6 @@ defmodule Count do
 
   @doc false
   def ev_state_run_count do
-    use Eff
     m Eff do
       i <- perform State.get(), {}
       if i == 0 do
@@ -65,7 +61,6 @@ defmodule Count do
 
   @doc false
   def ev_local_run_count do
-    use Eff
     m Eff do
       i <- Local.localGet()
       if i == 0 do
@@ -79,25 +74,23 @@ defmodule Count do
     end
   end
 
-  @doc false
-  def ev_fstate_run_count do
-    use Eff
-    m Eff do
-      i <- Fstate.get()
-      if i == 0 do
-        Eff.pure(i)
-      else
-        m Eff do
-          Fstate.put(i - 1) 
-          ev_fstate_run_count()
-        end
-      end
-    end
-  end
+  # @doc false
+  # def ev_fstate_run_count do
+  #   m Eff do
+  #     i <- Fstate.get()
+  #     if i == 0 do
+  #       Eff.pure(i)
+  #     else
+  #       m Eff do
+  #         Fstate.put(i - 1) 
+  #         ev_fstate_run_count()
+  #       end
+  #     end
+  #   end
+  # end
 
   @doc false
   def ev_flocal_run_count do
-    use Eff
     m Eff do
       i <- Flocal.get()
       if i == 0 do
@@ -106,38 +99,6 @@ defmodule Count do
         m Eff do
           Flocal.put(i - 1)
           ev_flocal_run_count()
-        end
-      end
-    end
-  end
-
-  @doc false
-  def ev_oflocal_run_count do
-    use Eff
-    m Eff do
-      i <- perform B.FLocal.lget(), {}
-      if i == 0 do
-        Eff.pure(i)
-      else
-        m Eff do
-          perform B.FLocal.lput(), (i - 1)
-          ev_oflocal_run_count()
-        end
-      end
-    end
-  end
-
-  @doc false
-  def ev_ofstate_run_count do
-    use Eff
-    m Eff do
-      i <- perform B.State.get(), {}
-      if i == 0 do
-        Eff.pure(i)
-      else
-        m Eff do
-          perform B.State.put(), (i - 1)
-          ev_ofstate_run_count()
         end
       end
     end
@@ -158,7 +119,6 @@ defmodule Count do
 
   @doc false
   def freer_run_count do
-    import ComputationExpression
     compute Workflow.Freer do
       let! i = Freer.State.get()
       match i do
@@ -172,13 +132,12 @@ defmodule Count do
 
   @doc false
   def freer_q_run_count do
-    import ComputationExpression
-    compute Workflow.Freer.Q do
-      let! i = Freer.Q.State.get()
+    compute Workflow.FreerQ do
+      let! i = FreerQ.State.get()
       match i do
         0 -> pure i
         _ ->
-          do! Freer.Q.State.put(i - 1)
+          do! FreerQ.State.put(i - 1)
           pure! freer_q_run_count()
       end
     end

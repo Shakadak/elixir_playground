@@ -3,12 +3,39 @@ defmodule Utils do
   require Wrapped.State
   require Base.Result
   require Freer
-  require Freer.Q
+  require FreerQ
 
   def reduceMEff(xs, z0, f) do
     Enum.reduce(xs, Eff.pure(z0), fn x, macc ->
       Eff.bind(macc, fn acc -> f.(x, acc) end)
     end)
+  end
+
+  def foldMEff([], z0, _f) do
+    Eff.pure(z0)
+  end
+
+  def foldMEff([head | tail], z0, f) do
+    macc = f.(head, z0)
+    Eff.bind(macc, fn acc -> foldMEff(tail, acc, f) end)
+  end
+
+  def rreduceMEff(xs, z0, f) do
+    Enumerable.reduce(xs, {:suspend, Eff.pure(z0)}, fn x, acc ->
+      {:suspend, f.(x, acc)}
+    end)
+    |> do_rreduceMEff()
+  end
+
+  def do_rreduceMEff({:suspended, action, reducer}) do
+    Eff.bind(action, fn acc ->
+      reducer.({:cont, acc})
+      |> do_rreduceMEff()
+    end)
+  end
+
+  def do_rreduceMEff({:done, value}) do
+    Eff.pure(value)
   end
 
   def reduceMTrans(xs, z0, f) do
@@ -30,8 +57,35 @@ defmodule Utils do
   end
 
   def reduceMFreerQ(xs, z0, f) do
-    Enum.reduce(xs, Freer.Q.pure(z0), fn x, macc ->
-      Freer.Q.bind(macc, fn acc -> f.(x, acc) end)
+    Enum.reduce(xs, FreerQ.pure(z0), fn x, macc ->
+      FreerQ.bind(macc, fn acc -> f.(x, acc) end)
     end)
+  end
+
+  def foldMFreerQ([], z0, _f) do
+    FreerQ.pure(z0)
+  end
+
+  def foldMFreerQ([head | tail], z0, f) do
+    macc = f.(head, z0)
+    FreerQ.bind(macc, fn acc -> foldMFreerQ(tail, acc, f) end)
+  end
+
+  def rreduceMFreerQ(xs, z0, f) do
+    Enumerable.reduce(xs, {:suspend, FreerQ.pure(z0)}, fn x, acc ->
+      {:suspend, f.(x, acc)}
+    end)
+    |> do_rreduceMFreerQ()
+  end
+
+  def do_rreduceMFreerQ({:suspended, action, reducer}) do
+    FreerQ.bind(action, fn acc ->
+      reducer.({:cont, acc})
+      |> do_rreduceMFreerQ()
+    end)
+  end
+
+  def do_rreduceMFreerQ({:done, value}) do
+    FreerQ.pure(value)
   end
 end

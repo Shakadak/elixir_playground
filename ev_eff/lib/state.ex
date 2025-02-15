@@ -29,8 +29,28 @@ defmodule State do
 
   use Eff
 
-  def get, do: %State.Get{}
-  def put, do: %State.Put{}
+  def get(ccons(m, h, t, sub_ctx), x) do
+    case h do
+      %State{} ->
+        function(fn {} -> perform(lget(), {}) end)
+        |> Op.runOp(m, t.(sub_ctx), x)
+
+        _ -> get(sub_ctx, x)
+    end
+  end
+
+  def put(ccons(m, h, t, sub_ctx), x) do
+    case h do
+      %State{} ->
+        function(fn x -> perform(lput(), x) end)
+        |> Op.runOp(m, t.(sub_ctx), x)
+
+        _ -> get(sub_ctx, x)
+    end
+  end
+
+  def get, do: &get/2
+  def put, do: &put/2
 
   def state(init, action) do
     handler = %State{

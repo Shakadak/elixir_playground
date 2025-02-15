@@ -10,6 +10,7 @@ defmodule Eff do
     quote do
       import Bind
       import Eff
+      import Context.CCons
       require Op
       require Ctl
     end
@@ -55,7 +56,7 @@ defmodule Eff do
         {:fn, _ast} -> quote do unquote(f).(unquote(ctl)) end
       end
 
-    quote do
+    quote generated: true do
       eff(fn ctx ->
         m Ctl do
           unquote(ctl) <- under(ctx, unquote(eff))
@@ -81,40 +82,51 @@ defmodule Eff do
     Ctl.runCtl(ctl)
   end
 
-  def perform(%impl{} = selectOp, x) do
-    # withSubcontext(fn ccons(m, h, t, ctx_) ->
-    #   new_ctx = t.(ctx_)
-    #   impl.runOp(selectOp, h, m, new_ctx, x)
-    # end, selectOp)
-    eff(fn ctx ->
-      ccons(m, h, t, ctx_) = selectContext(ctx, selectOp)
-      impl.runOp(selectOp, h, m, t.(ctx_), x)
-    end)
-  end
-
-  def withSubcontext(f, selectOp) do
-    eff(fn ctx ->
-      f.(selectContext(ctx, selectOp))
-    end)
-  end
-
-  def selectContext(ccons(_m, h, _t, sub_ctx) = ctx, %impl{} = selector) do
-    case impl.appropriate?(selector, h) do
-      true -> ctx
-      false -> selectContext(sub_ctx, selector)
+  defmacro perform(selectOp, x) do
+    quote do
+      eff(fn ctx -> unquote(selectOp).(ctx, unquote(x)) end)
     end
   end
 
-  def selectContext(cnil(), selector) do
-    raise "Context not found for selector : #{inspect(selector)}"
-  end
+  #def perform(selectOp, x) when is_function(selectOp, 2) do
+  #  eff(fn ctx -> selectOp.(ctx, x) end)
+  #end
 
-  def function(f) do
-  #defmacro function(f) do
-    #quote location: :keep do
-      #Op.op(fn _m, ctx, x -> under(ctx, unquote(f).(x)) end)
-      Op.op(fn _m, ctx, x -> under(ctx, f.(x)) end)
-    #end
+  #def perform(%impl{} = selectOp, x) do
+  #  # withSubcontext(fn ccons(m, h, t, ctx_) ->
+  #  #   new_ctx = t.(ctx_)
+  #  #   impl.runOp(selectOp, h, m, new_ctx, x)
+  #  # end, selectOp)
+  #  eff(fn ctx ->
+  #    ccons(m, h, t, ctx_) = selectContext(ctx, selectOp)
+  #    impl.runOp(selectOp, h, m, t.(ctx_), x)
+  #  end)
+  #end
+
+  # def select_and_run_context(ccons(m, h, t, sub_ctx), selector, x) when is_function(selector, 4) do
+  #   case selector.(h, m, t, sub_ctx) do
+  #     false -> select_and_run_context(sub_ctx, selector, x)
+  #     op -> op.(h, m, t.(sub_ctx), x)
+  #   end
+  # end
+
+  #def selectContext(ccons(_m, h, _t, sub_ctx) = ctx, %impl{} = selector) do
+  #  case impl.appropriate?(selector, h) do
+  #    false -> selectContext(sub_ctx, selector)
+  #    true -> ctx
+  #  end
+  #end
+
+  # def selectContext(cnil(), selector) do
+  #   raise "Context not found for selector : #{inspect(selector)}"
+  # end
+
+  #def function(f) do
+  defmacro function(f) do
+    quote location: :keep do
+      Op.op(fn _m, ctx, x -> under(ctx, unquote(f).(x)) end)
+      #Op.op(fn _m, ctx, x -> under(ctx, f.(x)) end)
+    end
   end
 
   def value(x) do
@@ -124,9 +136,9 @@ defmodule Eff do
   @doc """
   operation :: (a -> (b -> Eff e ans) -> Eff e ans) -> Op a b e ans
   """
-  #defmacro operation(f) do
-  def operation(f) do
-    #quote do
+  #def operation(f) do
+  defmacro operation(f) do
+    quote location: :keep do
       Op.op(fn m, ctx, x ->
         Ctl.yield(m, fn ctlk ->
           k = fn y ->
@@ -134,11 +146,11 @@ defmodule Eff do
               guard(ctx, ctx_, ctlk, y)
             end)
           end
-          #under(ctx, unquote(f).(x, k))
-          under(ctx, f.(x, k))
+          under(ctx, unquote(f).(x, k))
+          #under(ctx, f.(x, k))
         end)
       end)
-    #end
+    end
   end
 
   defmacro except(f) do
