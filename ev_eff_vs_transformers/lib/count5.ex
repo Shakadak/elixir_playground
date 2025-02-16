@@ -3,11 +3,12 @@ defmodule Count5 do
 
   use Eff
 
-  require FreerQ
   require Freer
   require Wrapped.State
   require Local
   require Flocal
+
+  use FreerQ.State
 
   def pure(n) do
     {ret, _st} = pure_run_count_5(n)

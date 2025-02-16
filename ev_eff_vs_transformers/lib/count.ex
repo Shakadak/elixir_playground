@@ -6,6 +6,8 @@ defmodule Count do
   require Local
   require Flocal
 
+  use FreerQ.State
+
   def pure(n) do
     pure_run_count(n)
   end

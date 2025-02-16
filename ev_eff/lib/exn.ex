@@ -10,7 +10,14 @@ defmodule Exn do
 
   use Eff
 
-  def failure, do: %Exn.Failure{}
+  def failure, do: &failure/2
+
+  def failure(ccons(m, h, t, sub_ctx), x) do
+    case h do
+      %Exn{failure: op} -> op |> Op.runOp(m, t.(sub_ctx), x)
+      _ -> failure(sub_ctx, x)
+    end
+  end
 
   def toMaybe(action) do
     handler = %Exn{failure: operation(fn {}, _ -> pure(Nothing) end)}

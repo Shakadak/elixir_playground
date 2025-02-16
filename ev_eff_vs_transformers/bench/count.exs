@@ -5,11 +5,11 @@ inputs = %{
 }
 
 contenders = %{
-  "pure" => fn input -> Count.pure(input) end,
+  #"pure" => fn input -> Count.pure(input) end,
   #"ev_eff_state" => fn input -> Count.ev_state(input) end,
   "ev_local" => fn input -> Count.ev_local(input) end,
   #"ev_flocal" => fn input -> Count.ev_flocal(input) end,
-  "trans" => fn input -> Count.trans(input) end,
+  #"trans" => fn input -> Count.trans(input) end,
   #"freer" => fn input -> Count.freer(input) end,
   "freer_q" => fn input -> Count.freer_q(input) end,
 }

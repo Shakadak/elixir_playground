@@ -13,7 +13,13 @@ defmodule Parser do
   import Exn
   import Local
 
-  def satisfy, do: %Parser.Op{op: :satisfy}
+  def satisfy, do: &satisfy/2
+
+  def satisfy(ccons(m, h, t, sub_ctx), x) do
+    case h do
+      %Parser{satisfy: op} -> Op.runOp(op, m, t.(sub_ctx), x)
+    end
+  end
 
   def choice(p1, p2) do
     m Eff do
@@ -104,7 +110,7 @@ defmodule Parser do
   end
 
   def solutions(action) do
-    map(&catMaybes/1, allResults(toMaybe(action)))
+    map(allResults(toMaybe(action)), &catMaybes/1)
   end
 
   def eager(action) do

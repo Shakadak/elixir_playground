@@ -44,20 +44,23 @@ end
 defmodule FreerQ.State do
   require FreerQ
 
-  def get, do: FreerQ.op(Get)
+  defmacro __using__([]) do
+    quote do
+      require FreerQ
+      require FreerQ.State
+    end
+  end
 
-  def put(x), do: FreerQ.op({Put, x})
+  defmacro get, do: quote(do: FreerQ.op(Get))
 
-  def ours(Get = op), do: {Yes, op}
-  def ours({Put, _} = op), do: {Yes, op}
-  def ours(other), do: {No, other}
+  defmacro put(x), do: quote(do: FreerQ.op({Put, unquote(x)}))
 
   def runState({Pure, x}, s) do FreerQ.pure({x, s}) end
   def runState({E, op, q}, s) do
-    case ours(op) do
-      {Yes, Get} -> runState(FreerQ.app(q, s), s)
-      {Yes, {Put, x}} -> runState(FreerQ.app(q, {}), x)
-      {No, other} -> {E, other, :queue.from_list([fn x -> runState(FreerQ.app(q, x), s) end])}
+    case op do
+      Get -> runState(FreerQ.app(q, s), s)
+      {Put, x} -> runState(FreerQ.app(q, {}), x)
+      other -> {E, other, :queue.from_list([fn x -> runState(FreerQ.app(q, x), s) end])}
     end
   end
 end
@@ -65,10 +68,14 @@ end
 defmodule FreerQ.Exception do
   require FreerQ
 
-  def throw_error(e), do: FreerQ.op({Error, e})
+  defmacro __using__([]) do
+    quote do
+      require FreerQ
+      require FreerQ.Exception
+    end
+  end
 
-  def ours({Error, _} = op), do: {Yes, op}
-  def ours(other), do: {No, other}
+  def throw_error(e), do: FreerQ.op({Error, e})
 
   def runException(action) do
     handleRelay(&FreerQ.pure({Right, &1}), fn {Error, e}, _k -> FreerQ.pure({Left, e}) end, action)
@@ -81,9 +88,9 @@ defmodule FreerQ.Exception do
 
       {E, op, q} ->
         k = &FreerQ.app(q, &1)
-        case ours(op) do
-          {Yes, x} -> h.(x, k)
-          {No, other} -> {E, other, :queue.from_list([k])}
+        case op do
+          {Error, _} = x -> h.(x, k)
+          other -> {E, other, :queue.from_list([k])}
         end
     end
   end

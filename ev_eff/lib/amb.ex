@@ -1,15 +1,17 @@
-defmodule Amb.Op do
-  @enforce_keys [:op]
-  defstruct @enforce_keys
-end
-
 defmodule Amb do
   @enforce_keys [:flip]
   defstruct @enforce_keys
 
   use Eff
 
-  def flip, do: %Amb.Op{op: :flip}
+  def flip, do: &flip/2
+
+  def flip(ccons(m, h, t, sub_ctx), x) do
+    case h do
+      %Amb{flip: op} -> op |> Op.runOp(m, t.(sub_ctx), x)
+      _ -> flip(sub_ctx, x)
+    end
+  end
 
   def allResults(action) do
     handler = %Amb{
@@ -40,11 +42,4 @@ defmodule Amb do
     }
     handler(handler, action)
   end
-end
-
-defimpl Context, for: Amb.Op do
-  def appropriate?(_, %Amb{}), do: true
-  def appropriate?(_, _), do: false
-
-  def selectOp(_, %Amb{flip: op}) do op end
 end

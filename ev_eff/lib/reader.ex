@@ -12,8 +12,15 @@ defmodule Reader do
 
   def ask, do: %Reader.Ask{}
 
-  def reader(action) do
-    handler(%Reader{ask: value("world")}, action)
+  def ask(ccons(m, h, t, sub_ctx), input) do
+    case h do
+      %Reader{ask: op} -> op |> Op.runOp(m, t.(sub_ctx), input)
+      _ -> ask(sub_ctx, input)
+    end
+  end
+
+  def reader(env, action) do
+    handler(%Reader{ask: value(env)}, action)
   end
 
   def r2 do
