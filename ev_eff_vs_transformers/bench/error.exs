@@ -12,7 +12,7 @@ contenders = %{
 
   #"trans" => fn input -> Error.trans(input, &Utils.reduceMTrans/3) end,
 
-  #"freer" => fn input -> Error.freer(input, &Utils.reduceMFreer/3) end,
+  #"freer_seq" => fn input -> Error.freer_seq(input, &Utils.reduceMFreerSeq/3) end,
   "freer_q" => fn input -> Error.freer_q(input, &Utils.reduceMFreerQ/3) end,
 
   "ev_either_fold" => fn input -> Error.ev_either(input, &Utils.foldMEff/3) end,

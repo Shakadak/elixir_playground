@@ -1,15 +1,15 @@
-defmodule Workflow.Freer do
+defmodule Workflow.FreerSeq do
   defmacro _Bind(m, f) do
     quote do
-    require Freer
-    Freer.bind(unquote(m), unquote(f))
+    require FreerSeq
+    FreerSeq.bind(unquote(m), unquote(f))
     end
   end
 
   defmacro _Pure(x) do
     quote do
-    require Freer
-    Freer.pure(unquote(x))
+    require FreerSeq
+    FreerSeq.pure(unquote(x))
     end
   end
 

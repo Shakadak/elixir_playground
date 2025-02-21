@@ -14,7 +14,7 @@ contenders = %{
 
   #"trans" => fn input -> Count5.trans(input, &Utils.reduceMTrans/3) end,
 
-  #"freer" => fn input -> Count5.freer(input, &Utils.reduceMFreer/3) end,
+  #"freer_seq" => fn input -> Count5.freer_seq(input, &Utils.reduceMFreerSeq/3) end,
   "freer_q" => fn input -> Count5.freer_q(input, &Utils.reduceMFreerQ/3) end,
 
   #"ev_local_custom_reduce" => fn input -> Count5.ev_local(input, &Utils.rreduceMEff/3) end,

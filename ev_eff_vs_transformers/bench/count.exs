@@ -10,7 +10,7 @@ contenders = %{
   "ev_local" => fn input -> Count.ev_local(input) end,
   #"ev_flocal" => fn input -> Count.ev_flocal(input) end,
   #"trans" => fn input -> Count.trans(input) end,
-  #"freer" => fn input -> Count.freer(input) end,
+  #"freer_seq" => fn input -> Count.freer_seq(input) end,
   "freer_q" => fn input -> Count.freer_q(input) end,
 }
 

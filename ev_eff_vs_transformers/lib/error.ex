@@ -19,8 +19,8 @@ defmodule Error do
     trans_run_error(xs, reduce)
   end
 
-  def freer(xs, reduce) do
-    Freer.run(Freer.Exception.runException(freer_run_error(xs, reduce)))
+  def freer_seq(xs, reduce) do
+    FreerSeq.run(FreerSeq.Exception.runException(freer_seq_run_error(xs, reduce)))
   end
 
   def freer_q(xs, reduce) do
@@ -58,11 +58,11 @@ defmodule Error do
   end
 
   @doc false
-  def freer_run_error(xs, reduce) do
-    require Freer
+  def freer_seq_run_error(xs, reduce) do
+    require FreerSeq
     f = fn
-      0, _acc -> Freer.Exception.throw_error(0)
-      x, acc -> Freer.pure(acc * x)
+      0, _acc -> FreerSeq.Exception.throw_error(0)
+      x, acc -> FreerSeq.pure(acc * x)
     end
     reduce.(xs, 1, f)
   end

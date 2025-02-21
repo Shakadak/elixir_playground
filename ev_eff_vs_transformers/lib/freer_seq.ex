@@ -1,4 +1,4 @@
-defmodule Freer do
+defmodule FreerSeq do
   alias Hallux.Seq
 
   defmacro op(op), do: quote(do: {E, unquote(op), Seq.new()})
@@ -43,48 +43,48 @@ defmodule Freer do
   end
 end
 
-defmodule Freer.State do
+defmodule FreerSeq.State do
   alias Hallux.Seq
-  require Freer
+  require FreerSeq
 
-  def get, do: Freer.op(Get)
+  def get, do: FreerSeq.op(Get)
 
-  def put(x), do: Freer.op({Put, x})
+  def put(x), do: FreerSeq.op({Put, x})
 
   def ours(Get = op), do: {Yes, op}
   def ours({Put, _} = op), do: {Yes, op}
   def ours(other), do: {No, other}
 
-  def runState({Pure, x}, s) do Freer.pure({x, s}) end
+  def runState({Pure, x}, s) do FreerSeq.pure({x, s}) end
   def runState({E, op, q}, s) do
     case ours(op) do
-      {Yes, Get} -> runState(Freer.app(q, s), s)
-      {Yes, {Put, x}} -> runState(Freer.app(q, {}), x)
-      {No, other} -> {E, other, Seq.new([fn x -> runState(Freer.app(q, x), s) end])}
+      {Yes, Get} -> runState(FreerSeq.app(q, s), s)
+      {Yes, {Put, x}} -> runState(FreerSeq.app(q, {}), x)
+      {No, other} -> {E, other, Seq.new([fn x -> runState(FreerSeq.app(q, x), s) end])}
     end
   end
 end
 
-defmodule Freer.Exception do
+defmodule FreerSeq.Exception do
   alias Hallux.Seq
-  require Freer
+  require FreerSeq
 
-  def throw_error(e), do: Freer.op({Error, e})
+  def throw_error(e), do: FreerSeq.op({Error, e})
 
   def ours({Error, _} = op), do: {Yes, op}
   def ours(other), do: {No, other}
 
   def runException(action) do
-    handleRelay(&Freer.pure({Right, &1}), fn {Error, e}, _k -> Freer.pure({Left, e}) end, action)
+    handleRelay(&FreerSeq.pure({Right, &1}), fn {Error, e}, _k -> FreerSeq.pure({Left, e}) end, action)
   end
 
   def handleRelay(ret, h, action) do
     case action do
-      Freer.pure(x) ->
+      FreerSeq.pure(x) ->
         ret.(x)
 
       {E, op, q} ->
-        k = &Freer.app(q, &1)
+        k = &FreerSeq.app(q, &1)
         case ours(op) do
           {Yes, x} -> h.(x, k)
           {No, other} -> {E, other, Seq.new([k])}

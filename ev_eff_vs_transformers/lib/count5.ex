@@ -3,7 +3,7 @@ defmodule Count5 do
 
   use Eff
 
-  require Freer
+  require FreerSeq
   require Wrapped.State
   require Local
   require Flocal
@@ -31,8 +31,8 @@ defmodule Count5 do
     Wrapped.State.evalStateT(trans_run_count_5(n, reduce), 0)
   end
 
-  def freer(n, reduce) do
-    {ret, _st} = Freer.run Freer.State.runState(freer_run_count_5(n, reduce), 0)
+  def freer_seq(n, reduce) do
+    {ret, _st} = FreerSeq.run FreerSeq.State.runState(freer_seq_run_count_5(n, reduce), 0)
     ret
   end
 
@@ -115,17 +115,17 @@ defmodule Count5 do
   end
 
   @doc false
-  def freer_run_count_5(n, reduce) do
+  def freer_seq_run_count_5(n, reduce) do
     range = n..0//-1
     f = fn
       x, acc when rem(x, 5) == 0 ->
-        compute Workflow.Freer do
-          let! i = Freer.State.get()
-          do! Freer.State.put(i + 1)
+        compute Workflow.FreerSeq do
+          let! i = FreerSeq.State.get()
+          do! FreerSeq.State.put(i + 1)
           pure max(acc, x)
         end
 
-      x, acc -> Freer.pure(max(acc, x))
+      x, acc -> FreerSeq.pure(max(acc, x))
     end
     reduce.(range, 1, f)
   end

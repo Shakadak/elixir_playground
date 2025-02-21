@@ -32,8 +32,8 @@ defmodule Count do
     Wrapped.State.evalStateT(trans_run_count(), n)
   end
 
-  def freer(n) do
-    {ret, _state} = Freer.run(Freer.State.runState(freer_run_count(), n))
+  def freer_seq(n) do
+    {ret, _state} = FreerSeq.run(FreerSeq.State.runState(freer_seq_run_count(), n))
     ret
   end
 
@@ -120,14 +120,14 @@ defmodule Count do
   end
 
   @doc false
-  def freer_run_count do
-    compute Workflow.Freer do
-      let! i = Freer.State.get()
+  def freer_seq_run_count do
+    compute Workflow.FreerSeq do
+      let! i = FreerSeq.State.get()
       match i do
         0 -> pure i
         _ ->
-          do! Freer.State.put(i - 1)
-          pure! freer_run_count()
+          do! FreerSeq.State.put(i - 1)
+          pure! freer_seq_run_count()
       end
     end
   end
