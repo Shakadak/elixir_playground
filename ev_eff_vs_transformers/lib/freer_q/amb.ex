@@ -14,31 +14,30 @@ defmodule FreerQ.Amb do
 
   defmacro flip, do: quote(do: FreerQ.op(Flip))
 
-  def runAllResults(pure(x)), do: pure([x])
-  def runAllResults(impure(op, q)) do
-    case op do
-      Flip ->
+  def runAllResults(action) do
+    handle_relay(action, &pure([&1]), fn
+      Flip, k, _ ->
         m Workflow.FreerQ do
-          xs <- app(q, true)
-          ys <- app(q, false)
+          xs <- k.(true)
+          ys <- k.(false)
           pure(xs ++ ys)
         end
-        |> runAllResults()
-    end
+        _, _, next -> next.()
+    end)
   end
 
-  def runFirstResult(pure(x)), do: pure(x)
-  def runFirstResult({E, op, q}) do
-    case op do
-      Flip ->
+  def runFirstResult(action) do
+    handle_relay(action, &pure({Just, &1}), fn
+      Flip, k, _ ->
         m Workflow.FreerQ do
-          xs <- app(q, true)
+          xs <- k.(true)
           case xs do
             {Just, _} -> pure(xs)
-            Nothing -> app(q, false)
+            Nothing -> k.(false)
           end
         end
-        |> runAllResults()
-    end
+
+      _, _, next -> next.()
+    end)
   end
 end

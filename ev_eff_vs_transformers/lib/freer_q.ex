@@ -46,11 +46,36 @@ defmodule FreerQ do
 
   def app(q, x) do
     case :queue.out(q) do
-      {:empty, _} -> pure(x)
-      {{:value, h}, t} -> case h.(x) do
-        pure(x) -> app(t, x)
-        impure(op, f) -> impure(op, :queue.join(f, t))
-      end
+      {:empty, _} ->
+        # this is rebuilding the `pure(x)` extracted from
+        # below. If we could know that `t` is empty, then we
+        # could just return `h.(x)` instead of `app(t, x)`
+        pure(x)
+
+      {{:value, h}, t} ->
+        case h.(x) do
+          pure(x) -> app(t, x)
+          impure(op, f) -> impure(op, :queue.join(f, t))
+        end
     end
+  end
+
+  def comp(q, h) do
+    &h.(app(q, &1))
+  end
+
+  def handle_relay(pure(x), ret, h)
+    when is_function(h, 3) do
+    ret.(x)
+  end
+
+  def handle_relay(impure(op, q), ret, h)
+    when is_function(ret, 1) do
+    k = comp(q, &handle_relay(&1, ret, h))
+    h.(op, k, fn -> impure(op, :queue.from_list([k])) end)
+  end
+
+  def send(t) do
+    impure(t, :queue.from_list([&pure/1]))
   end
 end
