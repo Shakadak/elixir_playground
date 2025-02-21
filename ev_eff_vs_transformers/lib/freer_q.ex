@@ -37,6 +37,8 @@ defmodule FreerQ do
     |> Eff.Internal.wrap(__CALLER__.module, __MODULE__, [:pure, :impure])
   end
 
+  def map(m, f), do: bind(m, fn x -> pure(f.(x)) end)
+
   def liftM(f, m), do: m |> bind(fn x -> pure(f.(x)) end)
 
   def f ~>> g, do: fn x -> x |> f.() |> bind(g) end
@@ -72,10 +74,23 @@ defmodule FreerQ do
   def handle_relay(impure(op, q), ret, h)
     when is_function(ret, 1) do
     k = comp(q, &handle_relay(&1, ret, h))
-    h.(op, k, fn -> impure(op, :queue.from_list([k])) end)
+    h.(op, k, fn -> impure(op, singleton(k)) end)
   end
 
   def send(t) do
     impure(t, :queue.from_list([&pure/1]))
   end
+
+  def handle_relay_state(pure(x), s, ret, h)
+    when is_function(h, 4) do
+    ret.(x, s)
+  end
+
+  def handle_relay_state(impure(op, q), s, ret, h)
+    when is_function(ret, 2) do
+    k = &handle_relay_state(app(q, &1), &2, ret, h)
+    h.(s, op, k, fn -> impure(op, singleton(&k.(&1, s))) end)
+  end
+
+  def singleton(x), do: :queue.from_list([x])
 end

@@ -7,7 +7,7 @@ defmodule Parsing do
     runEff(Parser.solutions(Parser.parse(input, Parser.expr())))
   end
 
-  def freer(input) do
-    FreerQ.run(Freer.Parser.solutions(Freer.Parser.parse(input, Freer.Example.expr())))
+  def freer_state(input) do
+    FreerQ.run(FreerQ.Parser.solutions(FreerQ.Parser.parse_state(FreerQ.Parser.expr(), input)))
   end
 end

@@ -14,7 +14,7 @@ defmodule FreerQ.Amb do
 
   defmacro flip, do: quote(do: FreerQ.op(Flip))
 
-  def runAllResults(action) do
+  def allResults(action) do
     handle_relay(action, &pure([&1]), fn
       Flip, k, _ ->
         m Workflow.FreerQ do
@@ -26,8 +26,8 @@ defmodule FreerQ.Amb do
     end)
   end
 
-  def runFirstResult(action) do
-    handle_relay(action, &pure({Just, &1}), fn
+  def firstResult(action) do
+    handle_relay(action, &pure(&1), fn
       Flip, k, _ ->
         m Workflow.FreerQ do
           xs <- k.(true)
